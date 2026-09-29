@@ -1,0 +1,20 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "reconx"
+version = "0.1.0"
+description = "Lightweight reconnaissance and security assessment CLI tool"
+requires-python = ">=3.9"
+dependencies = [
+    "typer",
+    "requests",
+    "rich"
+]
+
+[tool.setuptools.packages.find]
+include = ["reconx*"]
+
+[project.scripts]
+reconx = "reconx.main:app"
