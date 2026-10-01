@@ -17,4 +17,4 @@ dependencies = [
 include = ["reconx*"]
 
 [project.scripts]
-reconx = "reconx.main:app"
+reconx = "reconx.main:cli"
