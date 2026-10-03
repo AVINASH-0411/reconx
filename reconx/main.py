@@ -2,6 +2,7 @@ import sys
 import typer
 
 from reconx.modules.portscan import scan_ports
+from reconx.modules.lfi import test_lfi
 
 
 def parse_ports(port_spec: str) -> list[int]:
@@ -80,12 +81,71 @@ def web(
     )
 
 
+def run_lfi(target: str) -> None:
+    """Run the LFI detector."""
+
+    typer.echo("ReconX LFI Detector")
+    typer.echo(f"Target: {target}")
+    typer.echo("\n[*] Testing parameters...\n")
+
+    try:
+        findings = test_lfi(target)
+
+    except ValueError as error:
+        typer.echo(f"[!] LFI Error: {error}")
+        return
+
+    if findings:
+        for finding in findings:
+            typer.echo("[!] Possible LFI detected")
+
+            typer.echo(
+                f"    Parameter  : {finding['parameter']}"
+            )
+
+            typer.echo(
+                f"    Candidate  : {finding['candidate']}"
+            )
+
+            typer.echo(
+                f"    Traversal  : {finding['traversal']}"
+            )
+
+            typer.echo(
+                f"    Status     : {finding['status']}"
+            )
+
+            typer.echo(
+                f"    Evidence   : {finding['evidence']}"
+            )
+
+            typer.echo(
+                f"    Matched    : {', '.join(finding['matched'])}"
+            )
+
+            typer.echo(
+                f"    Confidence : {finding['confidence']}"
+            )
+
+            typer.echo()
+
+    else:
+        typer.echo(
+            "[-] No convincing LFI evidence found."
+        )
+
+    typer.echo(
+        "[+] LFI analysis completed."
+    )
+
+
 def show_help() -> None:
     """Display ReconX help."""
 
     typer.echo(
         "Usage: reconx [OPTIONS] TARGET\n"
-        "       reconx web TARGET\n\n"
+        "       reconx web TARGET\n"
+        "       reconx lfi TARGET\n\n"
         "Lightweight reconnaissance and security assessment CLI tool.\n\n"
         "Options:\n"
         "  -p, --port TEXT   "
@@ -96,7 +156,9 @@ def show_help() -> None:
         "Show this message and exit.\n\n"
         "Commands:\n"
         "  web               "
-        "Analyze HTTP information for a target."
+        "Analyze HTTP information for a target.\n"
+        "  lfi               "
+        "Test URL parameters for possible LFI."
     )
 
 
@@ -119,6 +181,17 @@ def cli() -> None:
     if args[0] == "web":
         sys.argv = [sys.argv[0]] + args[1:]
         web_app()
+        return
+
+    # LFI command
+    if args[0] == "lfi":
+        if len(args) < 2:
+            typer.echo(
+                'Usage: reconx lfi "URL"'
+            )
+            return
+
+        run_lfi(args[1])
         return
 
     # Main target
