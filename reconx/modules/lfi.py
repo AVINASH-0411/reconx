@@ -22,22 +22,52 @@ def generate_traversal_paths(path: str) -> list[str]:
     ]
 
 
-def detect_passwd_evidence(response_text: str) -> list[str]:
-    """Return recognizable /etc/passwd indicators found in a response."""
+def detect_file_evidence(
+    candidate_path: str,
+    response_text: str,
+) -> list[str]:
+    """Return recognizable evidence for the candidate file."""
 
-    indicators = [
-        "root:x:0:0:",
-        "daemon:x:1:1:",
-        "www-data:x:",
+    evidence_patterns = {
+        "/etc/passwd": [
+            "root:x:0:0:",
+            "daemon:x:1:1:",
+            "www-data:x:",
+        ],
+        "/etc/hostname": [
+            "localhost",
+        ],
+        "/etc/hosts": [
+            "127.0.0.1",
+            "localhost",
+        ],
+    }
+
+    patterns = evidence_patterns.get(
+        candidate_path,
+        [],
+    )
+
+    return [
+        pattern
+        for pattern in patterns
+        if pattern in response_text
     ]
 
-    matches = [
-        indicator
-        for indicator in indicators
-        if indicator in response_text
-    ]
 
-    return matches
+def required_evidence_matches(candidate_path: str) -> int:
+    """Return the minimum evidence required for a candidate."""
+
+    if candidate_path == "/etc/passwd":
+        return 2
+
+    if candidate_path == "/etc/hosts":
+        return 2
+
+    if candidate_path == "/etc/hostname":
+        return 1
+
+    return 1
 
 
 def build_test_url(
@@ -130,11 +160,17 @@ def test_lfi(
                 except requests.RequestException:
                     continue
 
-                evidence_matches = detect_passwd_evidence(
-                    response.text
+                evidence_matches = detect_file_evidence(
+                    candidate_path,
+                    response.text,
                 )
 
-                if len(evidence_matches) >= 2:
+                minimum_matches = required_evidence_matches(
+                    candidate_path
+                )
+
+                if len(evidence_matches) >= minimum_matches:
+
                     findings.append(
                         {
                             "parameter": parameter,
@@ -142,7 +178,8 @@ def test_lfi(
                             "traversal": traversal,
                             "status": response.status_code,
                             "evidence": (
-                                "Linux passwd-file pattern detected"
+                                f"Evidence for {candidate_path} "
+                                "detected"
                             ),
                             "matched": evidence_matches,
                             "confidence": "High",
