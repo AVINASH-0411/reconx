@@ -1,8 +1,10 @@
 import sys
+
 import typer
 
-from reconx.modules.portscan import scan_ports
+from reconx.modules.http_analyzer import analyze_http
 from reconx.modules.lfi import test_lfi
+from reconx.modules.portscan import scan_ports
 
 
 def parse_ports(port_spec: str) -> list[int]:
@@ -76,9 +78,55 @@ def web(
 ):
     """Analyze HTTP information for a target."""
 
+    typer.echo("ReconX HTTP Analyzer")
+    typer.echo(f"Target: {target}")
+    typer.echo()
+
+    try:
+        result = analyze_http(target)
+
+    except ValueError as error:
+        typer.echo(f"[!] HTTP Error: {error}")
+        return
+
     typer.echo(
-        f"HTTP Analyzer target: {target}"
+        f"Status Code      : {result['status_code']}"
     )
+
+    typer.echo(
+        f"Page Title       : {result['title']}"
+    )
+
+    typer.echo(
+        f"Server           : {result['server']}"
+    )
+
+    typer.echo(
+        f"Content-Type     : {result['content_type']}"
+    )
+
+    typer.echo(
+        f"Response Size    : {result['content_length']} bytes"
+    )
+
+    typer.echo(
+        f"Redirects        : {result['redirects']}"
+    )
+
+    typer.echo(
+        f"HTTPS            : {'Yes' if result['https'] else 'No'}"
+    )
+
+    typer.echo(
+        f"Response Time    : {result['response_time']:.3f} seconds"
+    )
+
+    typer.echo(
+        f"Final URL        : {result['final_url']}"
+    )
+
+    typer.echo()
+    typer.echo("[+] HTTP analysis completed.")
 
 
 def run_lfi(target: str) -> None:
