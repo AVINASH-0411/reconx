@@ -4,6 +4,16 @@ import time
 import requests
 
 
+SECURITY_HEADERS = {
+    "Content-Security-Policy": "CSP",
+    "X-Frame-Options": "X-Frame-Options",
+    "X-Content-Type-Options": "X-Content-Type-Options",
+    "Strict-Transport-Security": "HSTS",
+    "Referrer-Policy": "Referrer-Policy",
+    "Permissions-Policy": "Permissions-Policy",
+}
+
+
 def extract_title(html: str) -> str:
     """Extract the HTML page title."""
 
@@ -19,11 +29,22 @@ def extract_title(html: str) -> str:
     return " ".join(match.group(1).split())
 
 
+def analyze_security_headers(
+    headers: requests.structures.CaseInsensitiveDict,
+) -> dict[str, bool]:
+    """Check whether common security headers are present."""
+
+    return {
+        display_name: bool(headers.get(header_name))
+        for header_name, display_name in SECURITY_HEADERS.items()
+    }
+
+
 def analyze_http(
     target: str,
     timeout: float = 5.0,
 ) -> dict:
-    """Analyze HTTP information for a target."""
+    """Analyze HTTP information and security headers."""
 
     if not target.startswith(("http://", "https://")):
         raise ValueError(
@@ -48,6 +69,10 @@ def analyze_http(
 
     content = response.content
 
+    security_headers = analyze_security_headers(
+        response.headers
+    )
+
     return {
         "status_code": response.status_code,
         "title": extract_title(response.text),
@@ -64,4 +89,5 @@ def analyze_http(
         "https": response.url.startswith("https://"),
         "response_time": response_time,
         "final_url": response.url,
+        "security_headers": security_headers,
     }

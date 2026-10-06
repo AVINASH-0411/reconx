@@ -126,6 +126,71 @@ def web(
     )
 
     typer.echo()
+    typer.echo("Security Headers")
+    typer.echo("----------------")
+
+    for header, present in result["security_headers"].items():
+        status = "Present" if present else "Missing"
+
+        typer.echo(
+            f"{header:<20}: {status}"
+        )
+
+    typer.echo()
+    typer.echo("Security Observations")
+    typer.echo("---------------------")
+
+    observations = []
+
+    if not result["https"]:
+        observations.append(
+            "[!] HTTPS is not enabled"
+        )
+
+    if not result["security_headers"]["CSP"]:
+        observations.append(
+            "[!] Content-Security-Policy is missing"
+        )
+
+    if not result["security_headers"]["X-Frame-Options"]:
+        observations.append(
+            "[!] X-Frame-Options is missing"
+        )
+
+    if not result["security_headers"]["X-Content-Type-Options"]:
+        observations.append(
+            "[!] X-Content-Type-Options is missing"
+        )
+
+    if not result["security_headers"]["HSTS"]:
+        observations.append(
+            "[!] Strict-Transport-Security is missing"
+        )
+
+    if not result["security_headers"]["Referrer-Policy"]:
+        observations.append(
+            "[!] Referrer-Policy is missing"
+        )
+
+    if not result["security_headers"]["Permissions-Policy"]:
+        observations.append(
+            "[!] Permissions-Policy is missing"
+        )
+
+    if "Server" in result["server"] or result["server"] != "N/A":
+        observations.append(
+            "[!] Server information is disclosed"
+        )
+
+    if observations:
+        for observation in observations:
+            typer.echo(observation)
+    else:
+        typer.echo(
+            "[+] No obvious HTTP security issues detected"
+        )
+
+    typer.echo()
     typer.echo("[+] HTTP analysis completed.")
 
 
