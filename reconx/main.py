@@ -2,6 +2,7 @@ import sys
 
 import typer
 
+from reconx.modules.dirscan import scan_directories
 from reconx.modules.http_analyzer import analyze_http
 from reconx.modules.lfi import test_lfi
 from reconx.modules.portscan import scan_ports
@@ -177,7 +178,7 @@ def web(
             "[!] Permissions-Policy is missing"
         )
 
-    if "Server" in result["server"] or result["server"] != "N/A":
+    if result["server"] != "N/A":
         observations.append(
             "[!] Server information is disclosed"
         )
@@ -252,13 +253,95 @@ def run_lfi(target: str) -> None:
     )
 
 
+def run_directory_scan(
+    target: str,
+    wordlist: str,
+) -> None:
+    """Run the directory scanner."""
+
+    typer.echo("ReconX Directory Scanner")
+    typer.echo(f"Target   : {target}")
+    typer.echo(f"Wordlist : {wordlist}")
+    typer.echo()
+    typer.echo("[*] Starting directory scan...")
+    typer.echo()
+
+    try:
+        findings = scan_directories(
+            target,
+            wordlist,
+        )
+
+    except ValueError as error:
+        typer.echo(f"[!] Directory Scan Error: {error}")
+        return
+
+    interesting = 0
+
+    for finding in findings:
+        status = finding["status"]
+
+        if status in {
+            200,
+            204,
+            301,
+            302,
+            307,
+            308,
+            401,
+            403,
+        }:
+            typer.echo(
+                f"[{status}] {finding['path']} "
+                f"({finding['size']} bytes)"
+            )
+
+            interesting += 1
+
+    if interesting == 0:
+        typer.echo(
+            "[-] No interesting paths discovered."
+        )
+
+    typer.echo()
+    typer.echo("[+] Directory scan completed.")
+
+
+dir_app = typer.Typer(
+    name="dir",
+    help="Scan a web target for directories and files."
+)
+
+
+@dir_app.command()
+def directory(
+    target: str = typer.Argument(
+        ...,
+        help="Target URL to scan."
+    ),
+    wordlist: str = typer.Option(
+        ...,
+        "-w",
+        "--wordlist",
+        help="Path to the directory wordlist."
+    ),
+):
+    """Scan a web target for directories and files."""
+
+    run_directory_scan(
+        target,
+        wordlist,
+    )
+
+
 def show_help() -> None:
     """Display ReconX help."""
 
     typer.echo(
         "Usage: reconx [OPTIONS] TARGET\n"
         "       reconx web TARGET\n"
-        "       reconx lfi TARGET\n\n"
+        "       reconx lfi TARGET\n"
+        "       reconx dir TARGET -w WORDLIST\n\n"
         "Lightweight reconnaissance and security assessment CLI tool.\n\n"
         "Options:\n"
         "  -p, --port TEXT   "
@@ -271,7 +354,9 @@ def show_help() -> None:
         "  web               "
         "Analyze HTTP information for a target.\n"
         "  lfi               "
-        "Test URL parameters for possible LFI."
+        "Test URL parameters for possible LFI.\n"
+        "  dir               "
+        "Scan a web target for directories and files."
     )
 
 
@@ -280,23 +365,19 @@ def cli() -> None:
 
     args = sys.argv[1:]
 
-    # Help
     if not args or args in (["--help"], ["-h"]):
         show_help()
         return
 
-    # Version
     if args[0] in ("--version", "-v"):
         typer.echo("ReconX version 0.1.0")
         return
 
-    # Web command
     if args[0] == "web":
         sys.argv = [sys.argv[0]] + args[1:]
         web_app()
         return
 
-    # LFI command
     if args[0] == "lfi":
         if len(args) < 2:
             typer.echo(
@@ -307,13 +388,21 @@ def cli() -> None:
         run_lfi(args[1])
         return
 
-    # Main target
+    if args[0] == "dir":
+        if len(args) < 2:
+            typer.echo(
+                'Usage: reconx dir "URL" -w WORDLIST'
+            )
+            return
+
+        sys.argv = [sys.argv[0]] + args[1:]
+        dir_app()
+        return
+
     target = args[0]
 
-    # Default port range
     port_spec = "1-1000"
 
-    # Parse -p / --port
     if len(args) > 1:
 
         if args[1] in ("-p", "--port") and len(args) >= 3:
