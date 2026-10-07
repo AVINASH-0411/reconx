@@ -256,55 +256,63 @@ def run_lfi(target: str) -> None:
 def run_directory_scan(
     target: str,
     wordlist: str,
+    threads: int,
+    extensions: str | None,
+    status_codes: str | None,
 ) -> None:
     """Run the directory scanner."""
 
     typer.echo("ReconX Directory Scanner")
     typer.echo(f"Target   : {target}")
     typer.echo(f"Wordlist : {wordlist}")
+    typer.echo(f"Threads  : {threads}")
+
+    if extensions:
+        typer.echo(
+            f"Extensions: {extensions}"
+        )
+
+    if status_codes:
+        typer.echo(
+            f"Status Codes: {status_codes}"
+        )
+
     typer.echo()
     typer.echo("[*] Starting directory scan...")
     typer.echo()
 
     try:
         findings = scan_directories(
-            target,
-            wordlist,
+            target=target,
+            wordlist=wordlist,
+            threads=threads,
+            extensions=extensions,
+            status_codes=status_codes,
         )
 
     except ValueError as error:
-        typer.echo(f"[!] Directory Scan Error: {error}")
+        typer.echo(
+            f"[!] Directory Scan Error: {error}"
+        )
         return
 
-    interesting = 0
-
     for finding in findings:
-        status = finding["status"]
-
-        if status in {
-            200,
-            204,
-            301,
-            302,
-            307,
-            308,
-            401,
-            403,
-        }:
-            typer.echo(
-                f"[{status}] {finding['path']} "
-                f"({finding['size']} bytes)"
-            )
-
-            interesting += 1
-
-    if interesting == 0:
         typer.echo(
-            "[-] No interesting paths discovered."
+            f"[{finding['status']}] "
+            f"{finding['path']} "
+            f"({finding['size']} bytes)"
+        )
+
+    if not findings:
+        typer.echo(
+            "[-] No matching paths discovered."
         )
 
     typer.echo()
-    typer.echo("[+] Directory scan completed.")
+    typer.echo(
+        f"[+] Directory scan completed. "
+        f"Findings: {len(findings)}"
+    )
 
 
 dir_app = typer.Typer(
@@ -325,12 +333,33 @@ def directory(
         "--wordlist",
         help="Path to the directory wordlist."
     ),
+    threads: int = typer.Option(
+        10,
+        "-t",
+        "--threads",
+        help="Number of concurrent requests."
+    ),
+    extensions: str | None = typer.Option(
+        None,
+        "-x",
+        "--extensions",
+        help="Comma-separated file extensions."
+    ),
+    status_codes: str | None = typer.Option(
+        None,
+        "-s",
+        "--status",
+        help="Comma-separated HTTP status codes."
+    ),
 ):
     """Scan a web target for directories and files."""
 
     run_directory_scan(
-        target,
-        wordlist,
+        target=target,
+        wordlist=wordlist,
+        threads=threads,
+        extensions=extensions,
+        status_codes=status_codes,
     )
 
 
