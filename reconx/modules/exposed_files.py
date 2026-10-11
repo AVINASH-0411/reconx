@@ -1,0 +1,132 @@
+import requests
+
+
+SENSITIVE_FILES = {
+    "/.env": [
+        "DB_PASSWORD",
+        "DATABASE_URL",
+        "SECRET_KEY",
+        "API_KEY",
+    ],
+    "/.git/HEAD": [
+        "ref: refs/",
+    ],
+    "/backup.zip": [],
+    "/config.php.bak": [
+        "<?php",
+        "password",
+        "database",
+    ],
+    "/phpinfo.php": [
+        "phpinfo()",
+        "php version",
+        "configuration file",
+    ],
+}
+
+
+def check_file_evidence(
+    path: str,
+    content: bytes,
+) -> list[str]:
+    """Check response content for file-specific evidence."""
+
+    text = content[:200_000].decode(
+        "utf-8",
+        errors="ignore",
+    )
+
+    lower_text = text.lower()
+
+    if path == "/.env":
+        return [
+            marker
+            for marker in SENSITIVE_FILES[path]
+            if marker.lower() in lower_text
+        ]
+
+    if path == "/.git/HEAD":
+        return [
+            marker
+            for marker in SENSITIVE_FILES[path]
+            if marker.lower() in lower_text
+        ]
+
+    if path == "/config.php.bak":
+        return [
+            marker
+            for marker in SENSITIVE_FILES[path]
+            if marker.lower() in lower_text
+        ]
+
+    if path == "/phpinfo.php":
+        return [
+            marker
+            for marker in SENSITIVE_FILES[path]
+            if marker in lower_text
+        ]
+
+    if path == "/backup.zip":
+        if content.startswith(b"PK\x03\x04"):
+            return ["ZIP archive signature"]
+
+    return []
+
+
+def detect_exposed_files(
+    target: str,
+    timeout: float = 5.0,
+) -> list[dict]:
+    """Check common sensitive paths on an authorized web target."""
+
+    if not target.startswith(("http://", "https://")):
+        raise ValueError(
+            "Target must start with http:// or https://"
+        )
+
+    findings = []
+
+    for path in SENSITIVE_FILES:
+        url = f"{target.rstrip('/')}{path}"
+
+        try:
+            with requests.get(
+                url,
+                timeout=timeout,
+                allow_redirects=False,
+                stream=True,
+            ) as response:
+
+                if response.status_code != 200:
+                    continue
+
+                content = response.raw.read(
+                    200_000,
+                    decode_content=True,
+                )
+
+                evidence = check_file_evidence(
+                    path,
+                    content,
+                )
+
+                if not evidence:
+                    continue
+
+                findings.append(
+                    {
+                        "path": path,
+                        "url": url,
+                        "status": response.status_code,
+                        "content_type": response.headers.get(
+                            "Content-Type",
+                            "N/A",
+                        ),
+                        "evidence": evidence,
+                    }
+                )
+
+        except requests.RequestException:
+            continue
+
+    return findings
