@@ -17,6 +17,9 @@ def parse_ports(port_spec: str) -> list[int]:
     for part in port_spec.split(","):
         part = part.strip()
 
+        if not part:
+            raise ValueError("Empty port specification.")
+
         if "-" in part:
             start, end = part.split("-", 1)
             start_port = int(start)
@@ -42,14 +45,13 @@ def run_scan(target: str, port_spec: str) -> None:
     """Run the TCP port scanner."""
     try:
         ports = parse_ports(port_spec)
-    except ValueError as error:
-        typer.echo(f"Error: {error}")
+        open_ports = scan_ports(target, ports)
+    except (ValueError, OSError) as error:
+        typer.echo(f"[!] Port scan error: {error}")
         return
 
     typer.echo(f"Scanning {target}...")
     typer.echo(f"Ports: {len(ports)}")
-
-    open_ports = scan_ports(target, ports)
 
     if open_ports:
         typer.echo("\nOpen ports:")
@@ -200,9 +202,8 @@ def run_directory_scan(
     if not findings:
         typer.echo("[-] No matching paths discovered.")
 
-    typer.echo()
     typer.echo(
-        f"[+] Directory scan completed. Findings: {len(findings)}"
+        f"\n[+] Directory scan completed. Findings: {len(findings)}"
     )
 
 
@@ -267,6 +268,80 @@ def run_exposed_files(target: str) -> None:
     typer.echo("[+] Exposed-file analysis completed.")
 
 
+def run_aggregate_scan(
+    target: str,
+    port_spec: str = "1-1000",
+) -> None:
+    """Run a lightweight aggregate scan on an authorized target."""
+    typer.echo("ReconX Aggregate Scan")
+    typer.echo(f"Target: {target}")
+    typer.echo(f"Ports: {port_spec}")
+    typer.echo("\n[1/3] TCP Port Scan")
+
+    try:
+        ports = parse_ports(port_spec)
+        open_ports = scan_ports(target, ports)
+    except (ValueError, OSError) as error:
+        typer.echo(f"[!] Port scan error: {error}")
+        return
+
+    if not open_ports:
+        typer.echo("[-] No open TCP ports found.")
+        typer.echo("[+] Aggregate scan completed.")
+        return
+
+    typer.echo(f"[+] Open TCP ports: {', '.join(map(str, open_ports))}")
+
+    web_ports = {
+        80: "http",
+        443: "https",
+        8000: "http",
+        8001: "http",
+        8080: "http",
+        8443: "https",
+    }
+
+    for port in open_ports:
+        scheme = web_ports.get(port)
+
+        if scheme is None:
+            continue
+
+        url = f"{scheme}://{target}:{port}"
+        typer.echo(f"\n[2/3] HTTP Analysis: {url}")
+
+        try:
+            result = analyze_http(url)
+            typer.echo(f"    Status Code : {result['status_code']}")
+            typer.echo(f"    Page Title  : {result['title']}")
+            typer.echo(
+                f"    HTTPS       : {'Yes' if result['https'] else 'No'}"
+            )
+        except ValueError as error:
+            typer.echo(f"[!] HTTP analysis skipped: {error}")
+            continue
+
+        typer.echo(f"\n[3/3] Exposed File Detection: {url}")
+
+        try:
+            findings = detect_exposed_files(url)
+
+            if findings:
+                for finding in findings:
+                    typer.echo(
+                        f"[!] Possible exposure: {finding['path']} "
+                        f"(HTTP {finding['status']})"
+                    )
+            else:
+                typer.echo(
+                    "[-] No convincing exposed-file evidence found."
+                )
+        except ValueError as error:
+            typer.echo(f"[!] Exposed-file check skipped: {error}")
+
+    typer.echo("\n[+] Aggregate scan completed.")
+
+
 def show_help() -> None:
     """Display ReconX help."""
     typer.echo(
@@ -278,6 +353,7 @@ def show_help() -> None:
         "Lightweight reconnaissance and security assessment CLI tool.\n\n"
         "Options:\n"
         "  -p, --port TEXT   Ports: 80, 22,80,443, or 1-1000.\n"
+        "  -a                Run aggregate scan.\n"
         "  -v, --version     Show ReconX version.\n"
         "  --help            Show this message and exit.\n\n"
         "Commands:\n"
@@ -328,17 +404,30 @@ def cli() -> None:
         return
 
     target = args[0]
+    aggregate = "-a" in args[1:]
     port_spec = "1-1000"
 
-    if len(args) > 1:
-        if args[1] in ("-p", "--port") and len(args) >= 3:
-            port_spec = args[2]
+    remaining = args[1:]
+
+    if "-a" in remaining:
+        remaining.remove("-a")
+
+    if remaining:
+        if remaining[0] in ("-p", "--port") and len(remaining) >= 2:
+            port_spec = remaining[1]
+            if len(remaining) > 2:
+                typer.echo("Error: unexpected extra arguments.")
+                return
         else:
-            typer.echo("Error: use -p/--port for port selection.")
+            typer.echo("Error: use -p/--port or -a.")
             return
 
-    run_scan(target, port_spec)
+    if aggregate:
+        run_aggregate_scan(target, port_spec)
+    else:
+        run_scan(target, port_spec)
 
 
 if __name__ == "__main__":
     cli()
+
