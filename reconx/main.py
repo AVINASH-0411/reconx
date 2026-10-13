@@ -3,6 +3,7 @@ import sys
 
 import typer
 
+from reconx.modules.service_detect import detect_service
 from reconx.modules.dirscan import scan_directories
 from reconx.modules.exposed_files import detect_exposed_files
 from reconx.modules.http_analyzer import analyze_http
@@ -54,11 +55,12 @@ def run_scan(target: str, port_spec: str) -> None:
     typer.echo(f"Ports: {len(ports)}")
 
     if open_ports:
-        typer.echo("\nOpen ports:")
+        typer.echo("\nPORT     STATE    SERVICE")
         for port in open_ports:
-            typer.echo(f"  {port}/tcp")
+            service = detect_service(target, port)
+            typer.echo(f"{port:<8} open     {service}")
     else:
-        typer.echo("\nNo open TCP ports found.")
+         typer.echo("\nNo open TCP ports found.")
 
 
 web_app = typer.Typer(
@@ -290,7 +292,10 @@ def run_aggregate_scan(
         typer.echo("[+] Aggregate scan completed.")
         return
 
-    typer.echo(f"[+] Open TCP ports: {', '.join(map(str, open_ports))}")
+    typer.echo("\nPORT     STATE    SERVICE")
+    for port in open_ports:
+        service = detect_service(target, port)
+        typer.echo(f"{port:<8} open     {service}")
 
     web_ports = {
         80: "http",
