@@ -1,4 +1,5 @@
 import requests
+from reconx.modules.finding_assessment import assess_finding
 from urllib.parse import urlparse, parse_qsl, urlencode, urlunparse
 
 
@@ -171,21 +172,19 @@ def test_lfi(
 
                 if len(evidence_matches) >= minimum_matches:
 
-                    findings.append(
-                        {
-                            "parameter": parameter,
-                            "candidate": candidate_path,
-                            "traversal": traversal,
-                            "status": response.status_code,
-                            "evidence": (
-                                f"Evidence for {candidate_path} "
-                                "detected"
-                            ),
-                            "matched": evidence_matches,
-                            "confidence": "High",
-                            "url": test_url,
-                        }
-                    )
+                    finding = {
+                        "parameter": parameter,
+                        "candidate": candidate_path,
+                        "traversal": traversal,
+                        "status": response.status_code,
+                        "evidence": (
+                            f"Evidence for {candidate_path} detected"
+                        ),
+                        "matched": evidence_matches,
+                        "url": test_url,
+                    }
+
+                    findings.append(assess_finding(finding))
 
                     break
 
