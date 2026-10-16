@@ -1,5 +1,5 @@
 import requests
-
+from reconx.modules.finding_assessment import normalize_finding
 
 SENSITIVE_FILES = {
     "/.env": [
@@ -113,19 +113,29 @@ def detect_exposed_files(
                 if not evidence:
                     continue
 
-                findings.append(
-                    {
-                        "path": path,
-                        "url": url,
-                        "status": response.status_code,
-                        "content_type": response.headers.get(
-                            "Content-Type",
-                            "N/A",
-                        ),
-                        "evidence": evidence,
-                    }
-                )
+                finding = {
+                    "path": path,
+                    "url": url,
+                    "status": response.status_code,
+                    "content_type": response.headers.get(
+                        "Content-Type",
+                        "N/A",
+                    ),
+                    "evidence": evidence,
+                }
 
+                findings.append(
+                    normalize_finding(
+                        finding,
+                        finding_type="exposed_file",
+                        severity="MEDIUM",
+                        remediation=(
+                            "Remove public access to sensitive files, "
+                            "rotate exposed secrets, and restrict "
+                            "access to configuration and backup files."
+                        ),
+                    )
+                )
         except requests.RequestException:
             continue
 
