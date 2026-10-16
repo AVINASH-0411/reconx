@@ -47,7 +47,7 @@ def write_report(
     results: dict,
     output: str | None,
 ) -> None:
-    """Save scan results as JSON or CSV based on the filename."""
+    """Save scan results as JSON or CSV."""
     if not output:
         return
 
@@ -60,7 +60,6 @@ def write_report(
             typer.echo(f"[+] CSV report saved: {path}")
         else:
             typer.echo("[!] Report filename must end with .json or .csv.")
-
     except (OSError, ValueError, TypeError) as error:
         typer.echo(f"[!] Could not save report: {error}")
 
@@ -70,7 +69,7 @@ def run_scan(
     port_spec: str,
     output: str | None = None,
 ) -> None:
-    """Run the TCP port scanner."""
+    """Run the TCP port scanner and display summary statistics."""
     try:
         ports = parse_ports(port_spec)
         open_ports = scan_ports(target, ports)
@@ -98,10 +97,26 @@ def run_scan(
     else:
         typer.echo("\nNo open TCP ports found.")
 
+    summary = {
+        "total_ports_scanned": len(ports),
+        "open_ports_count": len(services),
+        "closed_or_filtered_count": len(ports) - len(services),
+    }
+
+    typer.echo("\nScan Summary")
+    typer.echo("------------")
+    typer.echo(f"Total ports scanned : {summary['total_ports_scanned']}")
+    typer.echo(f"Open ports found    : {summary['open_ports_count']}")
+    typer.echo(f"Closed/filtered     : {summary['closed_or_filtered_count']}")
+
     write_report(
         target,
         "tcp_port_scan",
-        {"ports_scanned": len(ports), "open_ports": services},
+        {
+            "ports_scanned": len(ports),
+            "open_ports": services,
+            "summary": summary,
+        },
         output,
     )
 
@@ -236,10 +251,22 @@ def run_directory_scan(
     if not findings:
         typer.echo("[-] No matching paths discovered.")
 
+    summary = {
+        "total_findings": len(findings),
+    }
+
+    typer.echo("\nScan Summary")
+    typer.echo("------------")
+    typer.echo(f"Directory findings : {summary['total_findings']}")
+
     write_report(
         target,
         "directory_scan",
-        {"findings": findings, "finding_count": len(findings)},
+        {
+            "findings": findings,
+            "finding_count": len(findings),
+            "summary": summary,
+        },
         output,
     )
     typer.echo(f"[+] Directory scan completed. Findings: {len(findings)}")
@@ -268,10 +295,22 @@ def run_exposed_files(target: str, output: str | None = None) -> None:
     if not findings:
         typer.echo("[-] No convincing exposed-file evidence found.")
 
+    summary = {
+        "total_findings": len(findings),
+    }
+
+    typer.echo("\nScan Summary")
+    typer.echo("------------")
+    typer.echo(f"Exposed-file findings: {summary['total_findings']}")
+
     write_report(
         target,
         "exposed_file_detection",
-        {"findings": findings, "finding_count": len(findings)},
+        {
+            "findings": findings,
+            "finding_count": len(findings),
+            "summary": summary,
+        },
         output,
     )
     typer.echo("[+] Exposed-file analysis completed.")
@@ -314,6 +353,16 @@ def run_aggregate_scan(
 
     if not open_ports:
         typer.echo("[-] No open TCP ports found.")
+        results["summary"] = {
+            "total_ports_scanned": len(ports),
+            "open_ports_count": 0,
+            "http_targets_analyzed": 0,
+            "exposed_file_findings": 0,
+        }
+        typer.echo("\nScan Summary")
+        typer.echo("------------")
+        typer.echo(f"Total ports scanned : {len(ports)}")
+        typer.echo("Open ports found    : 0")
         write_report(target, "aggregate_scan", results, output)
         typer.echo("[+] Aggregate scan completed.")
         return
@@ -361,6 +410,20 @@ def run_aggregate_scan(
                     )
         except (ValueError, OSError) as error:
             typer.echo(f"[!] Exposed-file check skipped: {error}")
+
+    results["summary"] = {
+        "total_ports_scanned": len(ports),
+        "open_ports_count": len(results["open_ports"]),
+        "http_targets_analyzed": len(results["http_analysis"]),
+        "exposed_file_findings": len(results["exposed_files"]),
+    }
+
+    typer.echo("\nScan Summary")
+    typer.echo("------------")
+    typer.echo(f"Total ports scanned : {results['summary']['total_ports_scanned']}")
+    typer.echo(f"Open ports found    : {results['summary']['open_ports_count']}")
+    typer.echo(f"HTTP targets analyzed: {results['summary']['http_targets_analyzed']}")
+    typer.echo(f"Exposed-file findings: {results['summary']['exposed_file_findings']}")
 
     write_report(target, "aggregate_scan", results, output)
     typer.echo("\n[+] Aggregate scan completed.")
