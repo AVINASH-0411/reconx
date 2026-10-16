@@ -3,6 +3,7 @@ import sys
 
 import typer
 
+from reconx.modules.severity import summarize_severities
 from reconx.modules.dirscan import scan_directories
 from reconx.modules.exposed_files import detect_exposed_files
 from reconx.modules.http_analyzer import analyze_http
@@ -101,6 +102,9 @@ def run_scan(
         "total_ports_scanned": len(ports),
         "open_ports_count": len(services),
         "closed_or_filtered_count": len(ports) - len(services),
+        "severity_counts": summarize_severities(
+            [{"type": "open_port", **service} for service in services]
+        ),
     }
 
     typer.echo("\nScan Summary")
@@ -108,6 +112,7 @@ def run_scan(
     typer.echo(f"Total ports scanned : {summary['total_ports_scanned']}")
     typer.echo(f"Open ports found    : {summary['open_ports_count']}")
     typer.echo(f"Closed/filtered     : {summary['closed_or_filtered_count']}")
+    typer.echo(f"Severity counts     : {summary['severity_counts']}")
 
     write_report(
         target,
@@ -207,10 +212,26 @@ def run_lfi(target: str, output: str | None = None) -> None:
     if not findings:
         typer.echo("[-] No convincing LFI evidence found.")
 
+    summary = {
+        "total_findings": len(findings),
+        "severity_counts": summarize_severities(
+            [{"type": "lfi", **finding} for finding in findings]
+        ),
+    }
+
+    typer.echo("\nScan Summary")
+    typer.echo("------------")
+    typer.echo(f"LFI findings : {summary['total_findings']}")
+    typer.echo(f"Severity counts: {summary['severity_counts']}")
+
     write_report(
         target,
         "lfi_detection",
-        {"findings": findings, "finding_count": len(findings)},
+        {
+            "findings": findings,
+            "finding_count": len(findings),
+            "summary": summary,
+        },
         output,
     )
     typer.echo("[+] LFI analysis completed.")
@@ -253,11 +274,13 @@ def run_directory_scan(
 
     summary = {
         "total_findings": len(findings),
+        "severity_counts": summarize_severities(findings),
     }
 
     typer.echo("\nScan Summary")
     typer.echo("------------")
     typer.echo(f"Directory findings : {summary['total_findings']}")
+    typer.echo(f"Severity counts    : {summary['severity_counts']}")
 
     write_report(
         target,
@@ -297,11 +320,15 @@ def run_exposed_files(target: str, output: str | None = None) -> None:
 
     summary = {
         "total_findings": len(findings),
+        "severity_counts": summarize_severities(
+            [{"type": "exposed_file", **finding} for finding in findings]
+        ),
     }
 
     typer.echo("\nScan Summary")
     typer.echo("------------")
     typer.echo(f"Exposed-file findings: {summary['total_findings']}")
+    typer.echo(f"Severity counts     : {summary['severity_counts']}")
 
     write_report(
         target,
@@ -358,11 +385,13 @@ def run_aggregate_scan(
             "open_ports_count": 0,
             "http_targets_analyzed": 0,
             "exposed_file_findings": 0,
+            "severity_counts": summarize_severities([]),
         }
         typer.echo("\nScan Summary")
         typer.echo("------------")
         typer.echo(f"Total ports scanned : {len(ports)}")
         typer.echo("Open ports found    : 0")
+        typer.echo(f"Severity counts     : {results['summary']['severity_counts']}")
         write_report(target, "aggregate_scan", results, output)
         typer.echo("[+] Aggregate scan completed.")
         return
@@ -416,6 +445,16 @@ def run_aggregate_scan(
         "open_ports_count": len(results["open_ports"]),
         "http_targets_analyzed": len(results["http_analysis"]),
         "exposed_file_findings": len(results["exposed_files"]),
+        "severity_counts": summarize_severities(
+            [
+                {"type": "open_port", **finding}
+                for finding in results["open_ports"]
+            ]
+            + [
+                {"type": "exposed_file", **finding}
+                for finding in results["exposed_files"]
+            ]
+        ),
     }
 
     typer.echo("\nScan Summary")
@@ -424,6 +463,7 @@ def run_aggregate_scan(
     typer.echo(f"Open ports found    : {results['summary']['open_ports_count']}")
     typer.echo(f"HTTP targets analyzed: {results['summary']['http_targets_analyzed']}")
     typer.echo(f"Exposed-file findings: {results['summary']['exposed_file_findings']}")
+    typer.echo(f"Severity counts     : {results['summary']['severity_counts']}")
 
     write_report(target, "aggregate_scan", results, output)
     typer.echo("\n[+] Aggregate scan completed.")
@@ -565,3 +605,4 @@ def cli() -> None:
 
 if __name__ == "__main__":
     cli()
+
