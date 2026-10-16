@@ -1,5 +1,4 @@
 
-import json
 import sys
 
 import typer
@@ -9,7 +8,7 @@ from reconx.modules.exposed_files import detect_exposed_files
 from reconx.modules.http_analyzer import analyze_http
 from reconx.modules.lfi import test_lfi
 from reconx.modules.portscan import scan_ports
-from reconx.modules.report import save_json_report
+from reconx.modules.report import save_csv_report, save_json_report
 from reconx.modules.service_detect import detect_service
 
 
@@ -48,20 +47,22 @@ def write_report(
     results: dict,
     output: str | None,
 ) -> None:
-    """Write scan results to JSON when an output path is provided."""
+    """Save scan results as JSON or CSV based on the filename."""
     if not output:
         return
 
     try:
-        path = save_json_report(
-            target=target,
-            scan_type=scan_type,
-            results=results,
-            output=output,
-        )
-        typer.echo(f"[+] JSON report saved: {path}")
+        if output.lower().endswith(".json"):
+            path = save_json_report(target, scan_type, results, output)
+            typer.echo(f"[+] JSON report saved: {path}")
+        elif output.lower().endswith(".csv"):
+            path = save_csv_report(target, scan_type, results, output)
+            typer.echo(f"[+] CSV report saved: {path}")
+        else:
+            typer.echo("[!] Report filename must end with .json or .csv.")
+
     except (OSError, ValueError, TypeError) as error:
-        typer.echo(f"[!] Could not save JSON report: {error}")
+        typer.echo(f"[!] Could not save report: {error}")
 
 
 def run_scan(
@@ -100,26 +101,9 @@ def run_scan(
     write_report(
         target,
         "tcp_port_scan",
-        {
-            "ports_scanned": len(ports),
-            "open_ports": services,
-        },
+        {"ports_scanned": len(ports), "open_ports": services},
         output,
     )
-
-
-web_app = typer.Typer(
-    name="web",
-    help="Analyze HTTP information for a target.",
-)
-
-
-@web_app.command()
-def web(
-    target: str = typer.Argument(..., help="Target URL to analyze."),
-):
-    """Analyze HTTP information for a target."""
-    run_web_analysis(target)
 
 
 def run_web_analysis(target: str, output: str | None = None) -> None:
@@ -129,7 +113,7 @@ def run_web_analysis(target: str, output: str | None = None) -> None:
 
     try:
         result = analyze_http(target)
-    except ValueError as error:
+    except (ValueError, OSError) as error:
         typer.echo(f"[!] HTTP Error: {error}")
         return
 
@@ -191,7 +175,7 @@ def run_lfi(target: str, output: str | None = None) -> None:
 
     try:
         findings = test_lfi(target)
-    except ValueError as error:
+    except (ValueError, OSError) as error:
         typer.echo(f"[!] LFI Error: {error}")
         return
 
@@ -261,38 +245,7 @@ def run_directory_scan(
     typer.echo(f"[+] Directory scan completed. Findings: {len(findings)}")
 
 
-dir_app = typer.Typer(
-    name="dir",
-    help="Scan a web target for directories and files.",
-)
-
-
-@dir_app.command()
-def directory(
-    target: str = typer.Argument(..., help="Target URL to scan."),
-    wordlist: str = typer.Option(
-        ..., "-w", "--wordlist", help="Path to the directory wordlist."
-    ),
-    threads: int = typer.Option(
-        10, "-t", "--threads", help="Number of concurrent requests."
-    ),
-    extensions: str | None = typer.Option(
-        None, "-x", "--extensions", help="Comma-separated file extensions."
-    ),
-    status_codes: str | None = typer.Option(
-        None, "-s", "--status", help="Comma-separated HTTP status codes."
-    ),
-):
-    """Scan a web target for directories and files."""
-    run_directory_scan(
-        target, wordlist, threads, extensions, status_codes
-    )
-
-
-def run_exposed_files(
-    target: str,
-    output: str | None = None,
-) -> None:
+def run_exposed_files(target: str, output: str | None = None) -> None:
     """Run exposed-file detection."""
     typer.echo("ReconX Exposed File Detection")
     typer.echo(f"Target: {target}")
@@ -300,7 +253,7 @@ def run_exposed_files(
 
     try:
         findings = detect_exposed_files(target)
-    except ValueError as error:
+    except (ValueError, OSError) as error:
         typer.echo(f"[!] Exposed File Error: {error}")
         return
 
@@ -384,14 +337,11 @@ def run_aggregate_scan(
 
         try:
             http_result = analyze_http(url)
-            results["http_analysis"].append({
-                "url": url,
-                **http_result,
-            })
+            results["http_analysis"].append({"url": url, **http_result})
             typer.echo(f"    Status Code : {http_result['status_code']}")
             typer.echo(f"    Page Title  : {http_result['title']}")
             typer.echo(f"    HTTPS       : {'Yes' if http_result['https'] else 'No'}")
-        except ValueError as error:
+        except (ValueError, OSError) as error:
             typer.echo(f"[!] HTTP analysis skipped: {error}")
             continue
 
@@ -409,25 +359,56 @@ def run_aggregate_scan(
                         f"[!] Possible exposure: {finding['path']} "
                         f"(HTTP {finding['status']})"
                     )
-        except ValueError as error:
+        except (ValueError, OSError) as error:
             typer.echo(f"[!] Exposed-file check skipped: {error}")
 
     write_report(target, "aggregate_scan", results, output)
     typer.echo("\n[+] Aggregate scan completed.")
 
 
+dir_app = typer.Typer(
+    name="dir",
+    help="Scan a web target for directories and files.",
+)
+
+
+@dir_app.command()
+def directory(
+    target: str = typer.Argument(..., help="Target URL to scan."),
+    wordlist: str = typer.Option(
+        ..., "-w", "--wordlist", help="Path to the directory wordlist."
+    ),
+    threads: int = typer.Option(
+        10, "-t", "--threads", help="Number of concurrent requests."
+    ),
+    extensions: str | None = typer.Option(
+        None, "-x", "--extensions", help="Comma-separated file extensions."
+    ),
+    status_codes: str | None = typer.Option(
+        None, "-s", "--status", help="Comma-separated HTTP status codes."
+    ),
+    output: str | None = typer.Option(
+        None, "-o", "--output", help="Save report as .json or .csv."
+    ),
+):
+    """Scan a web target for directories and files."""
+    run_directory_scan(
+        target, wordlist, threads, extensions, status_codes, output
+    )
+
+
 def show_help() -> None:
     """Display ReconX help."""
     typer.echo(
         "Usage: reconx [OPTIONS] TARGET\n"
-        "       reconx web TARGET [-o REPORT.json]\n"
-        "       reconx lfi TARGET [-o REPORT.json]\n"
-        "       reconx dir TARGET -w WORDLIST [-o REPORT.json]\n"
-        "       reconx files TARGET [-o REPORT.json]\n\n"
+        "       reconx web TARGET [-o REPORT.json|REPORT.csv]\n"
+        "       reconx lfi TARGET [-o REPORT.json|REPORT.csv]\n"
+        "       reconx dir TARGET -w WORDLIST [-o REPORT.json|REPORT.csv]\n"
+        "       reconx files TARGET [-o REPORT.json|REPORT.csv]\n\n"
         "Options:\n"
         "  -p, --port TEXT   Ports: 80, 22,80,443, or 1-1000.\n"
         "  -a                Run aggregate scan.\n"
-        "  -o, --output PATH Save results as a JSON report.\n"
+        "  -o, --output PATH Save results as .json or .csv.\n"
         "  -v, --version     Show ReconX version.\n"
         "  --help            Show this message and exit."
     )
@@ -447,22 +428,25 @@ def cli() -> None:
 
     if args[0] == "web":
         if len(args) < 2:
-            typer.echo('Usage: reconx web "URL" [-o REPORT.json]')
+            typer.echo('Usage: reconx web "URL" [-o REPORT.json|REPORT.csv]')
             return
+
         target = args[1]
         output = None
+
         if len(args) > 2:
             if len(args) == 4 and args[2] in ("-o", "--output"):
                 output = args[3]
             else:
                 typer.echo("Error: invalid web arguments.")
                 return
+
         run_web_analysis(target, output)
         return
 
     if args[0] in ("lfi", "files"):
         if len(args) < 2:
-            typer.echo(f'Usage: reconx {args[0]} "URL" [-o REPORT.json]')
+            typer.echo(f'Usage: reconx {args[0]} "URL" [-o REPORT.json|REPORT.csv]')
             return
 
         target = args[1]
