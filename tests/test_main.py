@@ -943,3 +943,34 @@ def test_run_aggregate_scan_handles_service_error(
     assert "Aggregate scan completed." in output
     mock_http.assert_any_call("http://127.0.0.1:80")
     mock_http.assert_any_call("https://127.0.0.1:443")
+
+@patch("reconx.main.scan_ports")
+@patch("reconx.main.detect_service")
+@patch("reconx.main.write_report")
+def test_run_scan_handles_service_detection_error(
+    mock_report,
+    mock_detect,
+    mock_scan,
+    capsys,
+):
+    from reconx.main import run_scan
+
+    mock_scan.return_value = [22, 80]
+    mock_detect.side_effect = [
+        OSError("service detection failed"),
+        "HTTP",
+    ]
+
+    run_scan("127.0.0.1", "22,80", "report.json")
+
+    output = capsys.readouterr().out
+
+    assert "service detection failed" in output
+    assert "22" in output
+    assert "80" in output
+    assert "Open ports found    : 2" in output
+
+    mock_report.assert_called_once()
+    report_data = mock_report.call_args.args[2]
+    assert report_data["open_ports"][0]["service"] == "unknown"
+    assert report_data["open_ports"][1]["service"] == "HTTP"
