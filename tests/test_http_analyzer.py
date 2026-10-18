@@ -127,3 +127,20 @@ def test_analyze_http_rejects_malformed_targets(target):
 def test_analyze_http_rejects_invalid_timeouts(timeout):
     with pytest.raises(ValueError, match="Timeout"):
         analyze_http("https://example.test", timeout=timeout)
+
+
+@patch("reconx.modules.http_analyzer.requests.get")
+def test_analyze_http_reports_server_error_status(mock_get):
+    response = Mock()
+    response.status_code = 500
+    response.text = "<title>Server Error</title>"
+    response.content = response.text.encode()
+    response.headers = requests.structures.CaseInsensitiveDict({})
+    response.history = []
+    response.url = "https://example.test"
+    mock_get.return_value = response
+
+    result = analyze_http("https://example.test")
+
+    assert result["status_code"] == 500
+    assert result["title"] == "Server Error"
