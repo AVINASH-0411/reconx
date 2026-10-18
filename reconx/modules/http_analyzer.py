@@ -1,5 +1,7 @@
+import math
 import re
 import time
+from urllib.parse import urlsplit
 
 import requests
 
@@ -49,6 +51,24 @@ def analyze_http(
     if not target.startswith(("http://", "https://")):
         raise ValueError(
             "Target must start with http:// or https://"
+        )
+    try:
+        parsed_url = urlsplit(target)
+        hostname = parsed_url.hostname
+    except ValueError as error:
+        raise ValueError("Target must be a valid URL") from error
+
+    if not hostname:
+        raise ValueError("Target must include a valid hostname")
+
+    if (
+        isinstance(timeout, bool)
+        or not isinstance(timeout, (int, float))
+        or not math.isfinite(timeout)
+        or timeout <= 0
+    ):
+        raise ValueError(
+            "Timeout must be a finite positive number"
         )
 
     start_time = time.perf_counter()

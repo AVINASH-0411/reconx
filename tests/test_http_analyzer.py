@@ -104,3 +104,26 @@ def test_analyze_http_counts_redirects(mock_get):
     assert result["https"] is True
     assert result["final_url"] == "https://example.test/final"
 
+
+@pytest.mark.parametrize(
+    "target",
+    [
+        "example.test",
+        "ftp://example.test",
+        "https://",
+        "https:///missing-host",
+        "https://[invalid-ipv6",
+    ],
+)
+def test_analyze_http_rejects_malformed_targets(target):
+    with pytest.raises(ValueError):
+        analyze_http(target)
+
+
+@pytest.mark.parametrize(
+    "timeout",
+    [0, -1, float("inf"), float("nan"), "5"],
+)
+def test_analyze_http_rejects_invalid_timeouts(timeout):
+    with pytest.raises(ValueError, match="Timeout"):
+        analyze_http("https://example.test", timeout=timeout)
