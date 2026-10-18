@@ -178,3 +178,101 @@ def test_cli_invalid_option(monkeypatch, capsys):
     )
     cli()
     assert "Error: invalid or incomplete option" in capsys.readouterr().out
+
+
+@patch("reconx.main.scan_ports")
+@patch("reconx.main.detect_service")
+@patch("reconx.main.write_report")
+def test_run_scan_with_open_ports(
+    mock_report,
+    mock_detect,
+    mock_scan,
+    capsys,
+):
+    from reconx.main import run_scan
+
+    mock_scan.return_value = [22, 80]
+    mock_detect.side_effect = ["SSH", "HTTP"]
+
+    run_scan("127.0.0.1", "22,80", "report.json")
+
+    output = capsys.readouterr().out
+    assert "Scanning 127.0.0.1..." in output
+    assert "Open ports found    : 2" in output
+    assert "22" in output
+    assert "80" in output
+
+    mock_scan.assert_called_once_with(
+        "127.0.0.1",
+        [22, 80],
+    )
+    mock_detect.assert_any_call("127.0.0.1", 22)
+    mock_detect.assert_any_call("127.0.0.1", 80)
+    mock_report.assert_called_once()
+
+
+@patch("reconx.main.scan_ports")
+@patch("reconx.main.write_report")
+def test_run_scan_with_no_open_ports(
+    mock_report,
+    mock_scan,
+    capsys,
+):
+    from reconx.main import run_scan
+
+    mock_scan.return_value = []
+
+    run_scan("127.0.0.1", "80,443")
+
+    output = capsys.readouterr().out
+    assert "No open TCP ports found." in output
+    assert "Open ports found    : 0" in output
+    assert "Closed/filtered     : 2" in output
+
+    mock_report.assert_called_once()
+
+
+@patch("reconx.main.scan_ports")
+def test_run_scan_invalid_ports(mock_scan, capsys):
+    from reconx.main import run_scan
+
+    run_scan("127.0.0.1", "invalid")
+
+    output = capsys.readouterr().out
+    assert "Port scan error:" in output
+    mock_scan.assert_not_called()
+
+
+@patch("reconx.main.scan_ports")
+def test_run_scan_handles_scan_error(mock_scan, capsys):
+    from reconx.main import run_scan
+
+    mock_scan.side_effect = OSError("connection failed")
+
+    run_scan("127.0.0.1", "22")
+
+    assert "Port scan error: connection failed" in capsys.readouterr().out
+
+
+@patch("reconx.main.scan_ports")
+@patch("reconx.main.detect_service")
+@patch("reconx.main.write_report")
+def test_run_scan_report_contents(
+    mock_report,
+    mock_detect,
+    mock_scan,
+):
+    from reconx.main import run_scan
+
+    mock_scan.return_value = [443]
+    mock_detect.return_value = "HTTPS"
+
+    run_scan("127.0.0.1", "443", "output.csv")
+
+    args = mock_report.call_args.args
+    assert args[0] == "127.0.0.1"
+    assert args[1] == "tcp_port_scan"
+    assert args[2]["ports_scanned"] == 1
+    assert args[2]["open_ports"][0]["service"] == "HTTPS"
+    assert args[2]["summary"]["open_ports_count"] == 1
+    assert args[3] == "output.csv"
