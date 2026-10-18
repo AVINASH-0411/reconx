@@ -276,3 +276,98 @@ def test_run_scan_report_contents(
     assert args[2]["open_ports"][0]["service"] == "HTTPS"
     assert args[2]["summary"]["open_ports_count"] == 1
     assert args[3] == "output.csv"
+
+
+@patch("reconx.main.save_json_report")
+def test_write_report_json(mock_save, capsys):
+    from reconx.main import write_report
+
+    mock_save.return_value = "results.json"
+    results = {"open_ports": []}
+
+    write_report("127.0.0.1", "tcp_port_scan", results, "results.json")
+
+    mock_save.assert_called_once_with(
+        "127.0.0.1",
+        "tcp_port_scan",
+        results,
+        "results.json",
+    )
+    assert "JSON report saved: results.json" in capsys.readouterr().out
+
+
+@patch("reconx.main.save_csv_report")
+def test_write_report_csv(mock_save, capsys):
+    from reconx.main import write_report
+
+    mock_save.return_value = "results.csv"
+    results = {"open_ports": []}
+
+    write_report("127.0.0.1", "tcp_port_scan", results, "results.csv")
+
+    mock_save.assert_called_once_with(
+        "127.0.0.1",
+        "tcp_port_scan",
+        results,
+        "results.csv",
+    )
+    assert "CSV report saved: results.csv" in capsys.readouterr().out
+
+
+@patch("reconx.main.save_json_report")
+def test_write_report_accepts_uppercase_extension(mock_save, capsys):
+    from reconx.main import write_report
+
+    mock_save.return_value = "RESULTS.JSON"
+
+    write_report("127.0.0.1", "scan", {}, "RESULTS.JSON")
+
+    mock_save.assert_called_once()
+    assert "JSON report saved: RESULTS.JSON" in capsys.readouterr().out
+
+
+def test_write_report_without_output_does_nothing():
+    from reconx.main import write_report
+
+    with (
+        patch("reconx.main.save_json_report") as mock_json,
+        patch("reconx.main.save_csv_report") as mock_csv,
+    ):
+        write_report("127.0.0.1", "scan", {}, None)
+        write_report("127.0.0.1", "scan", {}, "")
+
+    mock_json.assert_not_called()
+    mock_csv.assert_not_called()
+
+
+def test_write_report_rejects_unsupported_extension(capsys):
+    from reconx.main import write_report
+
+    write_report("127.0.0.1", "scan", {}, "results.txt")
+
+    assert "Report filename must end with .json or .csv." in (
+        capsys.readouterr().out
+    )
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        OSError("disk error"),
+        ValueError("invalid report data"),
+        TypeError("unsupported report data"),
+    ],
+)
+@patch("reconx.main.save_json_report")
+def test_write_report_handles_save_errors(
+    mock_save,
+    error,
+    capsys,
+):
+    from reconx.main import write_report
+
+    mock_save.side_effect = error
+
+    write_report("127.0.0.1", "scan", {}, "results.json")
+
+    assert f"Could not save report: {error}" in capsys.readouterr().out
