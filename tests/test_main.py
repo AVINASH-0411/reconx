@@ -371,3 +371,104 @@ def test_write_report_handles_save_errors(
     write_report("127.0.0.1", "scan", {}, "results.json")
 
     assert f"Could not save report: {error}" in capsys.readouterr().out
+
+@patch("reconx.main.write_report")
+@patch("reconx.main.analyze_http")
+def test_run_web_analysis_success(mock_analyze, mock_report, capsys):
+    from reconx.main import run_web_analysis
+
+    mock_analyze.return_value = {
+        "status_code": 200,
+        "title": "Test Page",
+        "server": "N/A",
+        "content_type": "text/html",
+        "content_length": 100,
+        "redirects": [],
+        "https": True,
+        "response_time": 0.125,
+        "final_url": "https://example.com",
+        "security_headers": {
+            "CSP": True,
+            "X-Frame-Options": True,
+            "X-Content-Type-Options": True,
+            "HSTS": True,
+            "Referrer-Policy": True,
+            "Permissions-Policy": True,
+        },
+    }
+
+    run_web_analysis("https://example.com", "web.json")
+
+    output = capsys.readouterr().out
+    assert "ReconX HTTP Analyzer" in output
+    assert "Status Code      : 200" in output
+    assert "Page Title       : Test Page" in output
+    assert "HTTPS            : Yes" in output
+    assert "No obvious HTTP security issues detected" in output
+    assert "HTTP analysis completed." in output
+
+    mock_analyze.assert_called_once_with("https://example.com")
+    mock_report.assert_called_once_with(
+        "https://example.com",
+        "http_analysis",
+        mock_analyze.return_value,
+        "web.json",
+    )
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        ValueError("invalid target"),
+        OSError("connection failed"),
+    ],
+)
+@patch("reconx.main.analyze_http")
+def test_run_web_analysis_handles_errors(mock_analyze, error, capsys):
+    from reconx.main import run_web_analysis
+
+    mock_analyze.side_effect = error
+
+    run_web_analysis("https://example.com")
+
+    output = capsys.readouterr().out
+    assert f"[!] HTTP Error: {error}" in output
+
+
+@patch("reconx.main.write_report")
+@patch("reconx.main.analyze_http")
+def test_run_web_analysis_reports_security_observations(
+    mock_analyze,
+    mock_report,
+    capsys,
+):
+    from reconx.main import run_web_analysis
+
+    mock_analyze.return_value = {
+        "status_code": 200,
+        "title": "Insecure Test",
+        "server": "Apache",
+        "content_type": "text/html",
+        "content_length": 100,
+        "redirects": [],
+        "https": False,
+        "response_time": 0.5,
+        "final_url": "http://example.com",
+        "security_headers": {
+            "CSP": False,
+            "X-Frame-Options": False,
+            "X-Content-Type-Options": False,
+            "HSTS": False,
+            "Referrer-Policy": False,
+            "Permissions-Policy": False,
+        },
+    }
+
+    run_web_analysis("http://example.com")
+
+    output = capsys.readouterr().out
+    assert "HTTPS is not enabled" in output
+    assert "Content-Security-Policy is missing" in output
+    assert "X-Frame-Options is missing" in output
+    assert "Server information is disclosed" in output
+    mock_report.assert_called_once()
