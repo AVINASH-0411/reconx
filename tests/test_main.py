@@ -27,6 +27,13 @@ def test_parse_ports_invalid(port_spec):
     with pytest.raises(ValueError):
         parse_ports(port_spec)
 
+@pytest.mark.parametrize(
+    "port_spec",
+    ["abc-xyz", "80-", "abc-80", "80-xyz"],
+)
+def test_parse_ports_malformed_ranges(port_spec):
+    with pytest.raises(ValueError):
+        parse_ports(port_spec)
 
 def test_parse_ports_reversed_range():
     with pytest.raises(
