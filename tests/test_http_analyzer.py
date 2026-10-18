@@ -144,3 +144,11 @@ def test_analyze_http_reports_server_error_status(mock_get):
 
     assert result["status_code"] == 500
     assert result["title"] == "Server Error"
+
+
+@patch("reconx.modules.http_analyzer.requests.get")
+def test_analyze_http_wraps_timeout_errors(mock_get):
+    mock_get.side_effect = requests.Timeout("request timed out")
+
+    with pytest.raises(ValueError, match="HTTP request failed"):
+        analyze_http("https://example.test")
