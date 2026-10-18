@@ -472,3 +472,434 @@ def test_run_web_analysis_reports_security_observations(
     assert "X-Frame-Options is missing" in output
     assert "Server information is disclosed" in output
     mock_report.assert_called_once()
+
+
+@patch("reconx.main.write_report")
+@patch("reconx.main.summarize_severities")
+@patch("reconx.main.test_lfi")
+def test_run_lfi_with_findings(
+    mock_test_lfi,
+    mock_summary,
+    mock_report,
+    capsys,
+):
+    from reconx.main import run_lfi
+
+    finding = {
+        "parameter": "file",
+        "candidate": "/etc/passwd",
+        "traversal": "../../../../etc/passwd",
+        "status": 200,
+        "evidence": "root:x:0:0",
+        "matched": ["root:"],
+        "confidence": "high",
+    }
+    mock_test_lfi.return_value = [finding]
+    mock_summary.return_value = {"High": 1}
+
+    run_lfi("http://example.com", "lfi.json")
+
+    output = capsys.readouterr().out
+    assert "ReconX LFI Detector" in output
+    assert "Possible LFI detected" in output
+    assert "Parameter  : file" in output
+    assert "Candidate  : /etc/passwd" in output
+    assert "LFI findings : 1" in output
+    assert "LFI analysis completed." in output
+
+    mock_test_lfi.assert_called_once_with("http://example.com")
+    mock_summary.assert_called_once_with([{"type": "lfi", **finding}])
+    mock_report.assert_called_once_with(
+        "http://example.com",
+        "lfi_detection",
+        {
+            "findings": [finding],
+            "finding_count": 1,
+            "summary": {
+                "total_findings": 1,
+                "severity_counts": {"High": 1},
+            },
+        },
+        "lfi.json",
+    )
+
+
+@patch("reconx.main.write_report")
+@patch("reconx.main.summarize_severities")
+@patch("reconx.main.test_lfi")
+def test_run_lfi_with_no_findings(
+    mock_test_lfi,
+    mock_summary,
+    mock_report,
+    capsys,
+):
+    from reconx.main import run_lfi
+
+    mock_test_lfi.return_value = []
+    mock_summary.return_value = {}
+
+    run_lfi("http://example.com")
+
+    output = capsys.readouterr().out
+    assert "No convincing LFI evidence found." in output
+    assert "LFI findings : 0" in output
+    mock_summary.assert_called_once_with([])
+    mock_report.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        ValueError("invalid target"),
+        OSError("connection failed"),
+    ],
+)
+@patch("reconx.main.test_lfi")
+def test_run_lfi_handles_errors(mock_test_lfi, error, capsys):
+    from reconx.main import run_lfi
+
+    mock_test_lfi.side_effect = error
+
+    run_lfi("http://example.com")
+
+    assert f"[!] LFI Error: {error}" in capsys.readouterr().out
+
+
+@patch("reconx.main.write_report")
+@patch("reconx.main.summarize_severities")
+@patch("reconx.main.scan_directories")
+def test_run_directory_scan_with_findings(
+    mock_scan,
+    mock_summary,
+    mock_report,
+    capsys,
+):
+    from reconx.main import run_directory_scan
+
+    findings = [
+        {
+            "path": "/admin",
+            "status": 200,
+            "size": 512,
+            "severity": "Medium",
+        }
+    ]
+    mock_scan.return_value = findings
+    mock_summary.return_value = {"Medium": 1}
+
+    run_directory_scan(
+        "http://example.com",
+        "wordlist.txt",
+        10,
+        "php,html",
+        "200,403",
+        "directory.json",
+    )
+
+    output = capsys.readouterr().out
+    assert "ReconX Directory Scanner" in output
+    assert "[200] /admin (512 bytes)" in output
+    assert "Directory findings : 1" in output
+    assert "Directory scan completed. Findings: 1" in output
+
+    mock_scan.assert_called_once_with(
+        target="http://example.com",
+        wordlist="wordlist.txt",
+        threads=10,
+        extensions="php,html",
+        status_codes="200,403",
+    )
+    mock_summary.assert_called_once_with(findings)
+    mock_report.assert_called_once_with(
+        "http://example.com",
+        "directory_scan",
+        {
+            "findings": findings,
+            "finding_count": 1,
+            "summary": {
+                "total_findings": 1,
+                "severity_counts": {"Medium": 1},
+            },
+        },
+        "directory.json",
+    )
+
+
+@patch("reconx.main.write_report")
+@patch("reconx.main.summarize_severities")
+@patch("reconx.main.scan_directories")
+def test_run_directory_scan_with_no_findings(
+    mock_scan,
+    mock_summary,
+    mock_report,
+    capsys,
+):
+    from reconx.main import run_directory_scan
+
+    mock_scan.return_value = []
+    mock_summary.return_value = {}
+
+    run_directory_scan(
+        "http://example.com",
+        "wordlist.txt",
+        5,
+        None,
+        None,
+    )
+
+    output = capsys.readouterr().out
+    assert "No matching paths discovered." in output
+    assert "Directory findings : 0" in output
+    assert "Directory scan completed. Findings: 0" in output
+    mock_summary.assert_called_once_with([])
+    mock_report.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        ValueError("invalid scan options"),
+        OSError("wordlist unavailable"),
+    ],
+)
+@patch("reconx.main.scan_directories")
+def test_run_directory_scan_handles_errors(
+    mock_scan,
+    error,
+    capsys,
+):
+    from reconx.main import run_directory_scan
+
+    mock_scan.side_effect = error
+
+    run_directory_scan(
+        "http://example.com",
+        "wordlist.txt",
+        5,
+        None,
+        None,
+    )
+
+    assert f"[!] Directory Scan Error: {error}" in (
+        capsys.readouterr().out
+    )
+
+
+@patch("reconx.main.write_report")
+@patch("reconx.main.summarize_severities")
+@patch("reconx.main.detect_exposed_files")
+def test_run_exposed_files_with_findings(
+    mock_detect,
+    mock_summary,
+    mock_report,
+    capsys,
+):
+    from reconx.main import run_exposed_files
+
+    findings = [
+        {
+            "path": "/.env",
+            "url": "http://example.com/.env",
+            "status": 200,
+            "content_type": "text/plain",
+            "evidence": ["APP_KEY=", "DB_HOST="],
+            "severity": "High",
+        }
+    ]
+    mock_detect.return_value = findings
+    mock_summary.return_value = {"High": 1}
+
+    run_exposed_files("http://example.com", "files.json")
+
+    output = capsys.readouterr().out
+    assert "ReconX Exposed File Detection" in output
+    assert "Possible exposed file detected" in output
+    assert "Path         : /.env" in output
+    assert "APP_KEY=, DB_HOST=" in output
+    assert "Exposed-file findings: 1" in output
+    assert "Exposed-file analysis completed." in output
+
+    mock_detect.assert_called_once_with("http://example.com")
+    mock_summary.assert_called_once_with(
+        [{"type": "exposed_file", **findings[0]}]
+    )
+    mock_report.assert_called_once_with(
+        "http://example.com",
+        "exposed_file_detection",
+        {
+            "findings": findings,
+            "finding_count": 1,
+            "summary": {
+                "total_findings": 1,
+                "severity_counts": {"High": 1},
+            },
+        },
+        "files.json",
+    )
+
+
+@patch("reconx.main.write_report")
+@patch("reconx.main.summarize_severities")
+@patch("reconx.main.detect_exposed_files")
+def test_run_exposed_files_with_no_findings(
+    mock_detect,
+    mock_summary,
+    mock_report,
+    capsys,
+):
+    from reconx.main import run_exposed_files
+
+    mock_detect.return_value = []
+    mock_summary.return_value = {}
+
+    run_exposed_files("http://example.com")
+
+    output = capsys.readouterr().out
+    assert "No convincing exposed-file evidence found." in output
+    assert "Exposed-file findings: 0" in output
+    mock_summary.assert_called_once_with([])
+    mock_report.assert_called_once()
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        ValueError("invalid target"),
+        OSError("connection failed"),
+    ],
+)
+@patch("reconx.main.detect_exposed_files")
+def test_run_exposed_files_handles_errors(
+    mock_detect,
+    error,
+    capsys,
+):
+    from reconx.main import run_exposed_files
+
+    mock_detect.side_effect = error
+
+    run_exposed_files("http://example.com")
+
+    assert f"[!] Exposed File Error: {error}" in (
+        capsys.readouterr().out
+    )
+
+
+@patch("reconx.main.write_report")
+@patch("reconx.main.summarize_severities")
+@patch("reconx.main.scan_ports")
+def test_run_aggregate_scan_with_no_open_ports(
+    mock_scan,
+    mock_summary,
+    mock_report,
+    capsys,
+):
+    from reconx.main import run_aggregate_scan
+
+    mock_scan.return_value = []
+    mock_summary.return_value = {}
+
+    run_aggregate_scan("127.0.0.1", "80,443", "aggregate.json")
+
+    output = capsys.readouterr().out
+    assert "ReconX Aggregate Scan" in output
+    assert "No open TCP ports found." in output
+    assert "Open ports found    : 0" in output
+    assert "Aggregate scan completed." in output
+
+    mock_scan.assert_called_once_with("127.0.0.1", [80, 443])
+    mock_summary.assert_called_once_with([])
+    mock_report.assert_called_once()
+    assert mock_report.call_args.args[1] == "aggregate_scan"
+
+
+@patch("reconx.main.write_report")
+@patch("reconx.main.summarize_severities")
+@patch("reconx.main.detect_exposed_files")
+@patch("reconx.main.analyze_http")
+@patch("reconx.main.detect_service")
+@patch("reconx.main.scan_ports")
+def test_run_aggregate_scan_with_web_port(
+    mock_scan,
+    mock_service,
+    mock_http,
+    mock_exposed,
+    mock_summary,
+    mock_report,
+    capsys,
+):
+    from reconx.main import run_aggregate_scan
+
+    mock_scan.return_value = [80]
+    mock_service.return_value = "http"
+    mock_http.return_value = {
+        "status_code": 200,
+        "title": "Test",
+        "https": False,
+    }
+    mock_exposed.return_value = []
+    mock_summary.return_value = {}
+
+    run_aggregate_scan("127.0.0.1", "80")
+
+    output = capsys.readouterr().out
+    assert "80/tcp open http" in output
+    assert "HTTP Analysis: http://127.0.0.1:80" in output
+    assert "Exposed File Detection: http://127.0.0.1:80" in output
+    assert "HTTP targets analyzed: 1" in output
+    assert "Aggregate scan completed." in output
+
+    mock_http.assert_called_once_with("http://127.0.0.1:80")
+    mock_exposed.assert_called_once_with("http://127.0.0.1:80")
+    mock_report.assert_called_once()
+    assert mock_report.call_args.args[1] == "aggregate_scan"
+
+
+@pytest.mark.parametrize(
+    "error",
+    [
+        ValueError("invalid port specification"),
+        OSError("scan failed"),
+    ],
+)
+@patch("reconx.main.scan_ports")
+def test_run_aggregate_scan_handles_port_errors(
+    mock_scan,
+    error,
+    capsys,
+):
+    from reconx.main import run_aggregate_scan
+
+    mock_scan.side_effect = error
+
+    run_aggregate_scan("127.0.0.1", "80")
+
+    assert f"[!] Port scan error: {error}" in capsys.readouterr().out
+
+
+@patch("reconx.main.write_report")
+@patch("reconx.main.summarize_severities")
+@patch("reconx.main.analyze_http")
+@patch("reconx.main.detect_service")
+@patch("reconx.main.scan_ports")
+def test_run_aggregate_scan_handles_http_error(
+    mock_scan,
+    mock_service,
+    mock_http,
+    mock_summary,
+    mock_report,
+    capsys,
+):
+    from reconx.main import run_aggregate_scan
+
+    mock_scan.return_value = [80]
+    mock_service.return_value = "http"
+    mock_http.side_effect = OSError("HTTP unavailable")
+    mock_summary.return_value = {}
+
+    run_aggregate_scan("127.0.0.1", "80")
+
+    output = capsys.readouterr().out
+    assert "HTTP analysis skipped: HTTP unavailable" in output
+    assert "Aggregate scan completed." in output
+    mock_report.assert_called_once()
