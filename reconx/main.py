@@ -29,7 +29,9 @@ def parse_ports(port_spec: str) -> list[int]:
             end_port = int(end)
 
             if start_port > end_port:
-                raise ValueError("Port range start cannot be greater than end.")
+                raise ValueError(
+                    "Port range start cannot be greater than end."
+                )
 
             ports.update(range(start_port, end_port + 1))
         else:
@@ -54,13 +56,19 @@ def write_report(
 
     try:
         if output.lower().endswith(".json"):
-            path = save_json_report(target, scan_type, results, output)
+            path = save_json_report(
+                target, scan_type, results, output
+            )
             typer.echo(f"[+] JSON report saved: {path}")
         elif output.lower().endswith(".csv"):
-            path = save_csv_report(target, scan_type, results, output)
+            path = save_csv_report(
+                target, scan_type, results, output
+            )
             typer.echo(f"[+] CSV report saved: {path}")
         else:
-            typer.echo("[!] Report filename must end with .json or .csv.")
+            typer.echo(
+                "[!] Report filename must end with .json or .csv."
+            )
     except (OSError, ValueError, TypeError) as error:
         typer.echo(f"[!] Could not save report: {error}")
 
@@ -87,7 +95,15 @@ def run_scan(
         typer.echo("\nPORT     STATE    SERVICE")
 
         for port in open_ports:
-            service = detect_service(target, port)
+            try:
+                service = detect_service(target, port)
+            except (ValueError, OSError) as error:
+                typer.echo(
+                    f"[!] Service detection error on port "
+                    f"{port}: {error}"
+                )
+                service = "unknown"
+
             typer.echo(f"{port:<8} open     {service}")
             services.append({
                 "port": port,
@@ -103,7 +119,10 @@ def run_scan(
         "open_ports_count": len(services),
         "closed_or_filtered_count": len(ports) - len(services),
         "severity_counts": summarize_severities(
-            [{"type": "open_port", **service} for service in services]
+            [
+                {"type": "open_port", **service}
+                for service in services
+            ]
         ),
     }
 
@@ -111,7 +130,10 @@ def run_scan(
     typer.echo("------------")
     typer.echo(f"Total ports scanned : {summary['total_ports_scanned']}")
     typer.echo(f"Open ports found    : {summary['open_ports_count']}")
-    typer.echo(f"Closed/filtered     : {summary['closed_or_filtered_count']}")
+    typer.echo(
+        f"Closed/filtered     : "
+        f"{summary['closed_or_filtered_count']}"
+    )
     typer.echo(f"Severity counts     : {summary['severity_counts']}")
 
     write_report(
@@ -126,7 +148,10 @@ def run_scan(
     )
 
 
-def run_web_analysis(target: str, output: str | None = None) -> None:
+def run_web_analysis(
+    target: str,
+    output: str | None = None,
+) -> None:
     """Analyze HTTP details and optionally save a report."""
     typer.echo("ReconX HTTP Analyzer")
     typer.echo(f"Target: {target}\n")
@@ -144,14 +169,18 @@ def run_web_analysis(target: str, output: str | None = None) -> None:
     typer.echo(f"Response Size    : {result['content_length']} bytes")
     typer.echo(f"Redirects        : {result['redirects']}")
     typer.echo(f"HTTPS            : {'Yes' if result['https'] else 'No'}")
-    typer.echo(f"Response Time    : {result['response_time']:.3f} seconds")
+    typer.echo(
+        f"Response Time    : {result['response_time']:.3f} seconds"
+    )
     typer.echo(f"Final URL        : {result['final_url']}")
 
     typer.echo("\nSecurity Headers")
     typer.echo("----------------")
 
     for header, present in result["security_headers"].items():
-        typer.echo(f"{header:<20}: {'Present' if present else 'Missing'}")
+        typer.echo(
+            f"{header:<20}: {'Present' if present else 'Missing'}"
+        )
 
     observations = []
 
@@ -161,7 +190,9 @@ def run_web_analysis(target: str, output: str | None = None) -> None:
     header_observations = {
         "CSP": "[!] Content-Security-Policy is missing",
         "X-Frame-Options": "[!] X-Frame-Options is missing",
-        "X-Content-Type-Options": "[!] X-Content-Type-Options is missing",
+        "X-Content-Type-Options": (
+            "[!] X-Content-Type-Options is missing"
+        ),
         "HSTS": "[!] Strict-Transport-Security is missing",
         "Referrer-Policy": "[!] Referrer-Policy is missing",
         "Permissions-Policy": "[!] Permissions-Policy is missing",
@@ -187,7 +218,10 @@ def run_web_analysis(target: str, output: str | None = None) -> None:
     typer.echo("\n[+] HTTP analysis completed.")
 
 
-def run_lfi(target: str, output: str | None = None) -> None:
+def run_lfi(
+    target: str,
+    output: str | None = None,
+) -> None:
     """Run the LFI detector."""
     typer.echo("ReconX LFI Detector")
     typer.echo(f"Target: {target}")
@@ -292,10 +326,15 @@ def run_directory_scan(
         },
         output,
     )
-    typer.echo(f"[+] Directory scan completed. Findings: {len(findings)}")
+    typer.echo(
+        f"[+] Directory scan completed. Findings: {len(findings)}"
+    )
 
 
-def run_exposed_files(target: str, output: str | None = None) -> None:
+def run_exposed_files(
+    target: str,
+    output: str | None = None,
+) -> None:
     """Run exposed-file detection."""
     typer.echo("ReconX Exposed File Detection")
     typer.echo(f"Target: {target}")
@@ -313,7 +352,9 @@ def run_exposed_files(target: str, output: str | None = None) -> None:
         typer.echo(f"    URL          : {finding['url']}")
         typer.echo(f"    Status       : {finding['status']}")
         typer.echo(f"    Content-Type : {finding['content_type']}")
-        typer.echo(f"    Evidence     : {', '.join(finding['evidence'])}\n")
+        typer.echo(
+            f"    Evidence     : {', '.join(finding['evidence'])}\n"
+        )
 
     if not findings:
         typer.echo("[-] No convincing exposed-file evidence found.")
@@ -321,7 +362,10 @@ def run_exposed_files(target: str, output: str | None = None) -> None:
     summary = {
         "total_findings": len(findings),
         "severity_counts": summarize_severities(
-            [{"type": "exposed_file", **finding} for finding in findings]
+            [
+                {"type": "exposed_file", **finding}
+                for finding in findings
+            ]
         ),
     }
 
@@ -369,7 +413,14 @@ def run_aggregate_scan(
     }
 
     for port in open_ports:
-        service = detect_service(target, port)
+        try:
+            service = detect_service(target, port)
+        except (ValueError, OSError) as error:
+            typer.echo(
+                f"[!] Service detection error on port {port}: {error}"
+            )
+            service = "unknown"
+
         typer.echo(f"{port}/tcp open {service}")
         results["open_ports"].append({
             "port": port,
@@ -391,7 +442,10 @@ def run_aggregate_scan(
         typer.echo("------------")
         typer.echo(f"Total ports scanned : {len(ports)}")
         typer.echo("Open ports found    : 0")
-        typer.echo(f"Severity counts     : {results['summary']['severity_counts']}")
+        typer.echo(
+            f"Severity counts     : "
+            f"{results['summary']['severity_counts']}"
+        )
         write_report(target, "aggregate_scan", results, output)
         typer.echo("[+] Aggregate scan completed.")
         return
@@ -415,10 +469,18 @@ def run_aggregate_scan(
 
         try:
             http_result = analyze_http(url)
-            results["http_analysis"].append({"url": url, **http_result})
-            typer.echo(f"    Status Code : {http_result['status_code']}")
+            results["http_analysis"].append({
+                "url": url,
+                **http_result,
+            })
+            typer.echo(
+                f"    Status Code : {http_result['status_code']}"
+            )
             typer.echo(f"    Page Title  : {http_result['title']}")
-            typer.echo(f"    HTTPS       : {'Yes' if http_result['https'] else 'No'}")
+            typer.echo(
+                f"    HTTPS       : "
+                f"{'Yes' if http_result['https'] else 'No'}"
+            )
         except (ValueError, OSError) as error:
             typer.echo(f"[!] HTTP analysis skipped: {error}")
             continue
@@ -430,7 +492,9 @@ def run_aggregate_scan(
             results["exposed_files"].extend(findings)
 
             if not findings:
-                typer.echo("[-] No convincing exposed-file evidence found.")
+                typer.echo(
+                    "[-] No convincing exposed-file evidence found."
+                )
             else:
                 for finding in findings:
                     typer.echo(
@@ -459,11 +523,26 @@ def run_aggregate_scan(
 
     typer.echo("\nScan Summary")
     typer.echo("------------")
-    typer.echo(f"Total ports scanned : {results['summary']['total_ports_scanned']}")
-    typer.echo(f"Open ports found    : {results['summary']['open_ports_count']}")
-    typer.echo(f"HTTP targets analyzed: {results['summary']['http_targets_analyzed']}")
-    typer.echo(f"Exposed-file findings: {results['summary']['exposed_file_findings']}")
-    typer.echo(f"Severity counts     : {results['summary']['severity_counts']}")
+    typer.echo(
+        f"Total ports scanned : "
+        f"{results['summary']['total_ports_scanned']}"
+    )
+    typer.echo(
+        f"Open ports found    : "
+        f"{results['summary']['open_ports_count']}"
+    )
+    typer.echo(
+        f"HTTP targets analyzed: "
+        f"{results['summary']['http_targets_analyzed']}"
+    )
+    typer.echo(
+        f"Exposed-file findings: "
+        f"{results['summary']['exposed_file_findings']}"
+    )
+    typer.echo(
+        f"Severity counts     : "
+        f"{results['summary']['severity_counts']}"
+    )
 
     write_report(target, "aggregate_scan", results, output)
     typer.echo("\n[+] Aggregate scan completed.")
@@ -531,7 +610,9 @@ def cli() -> None:
 
     if args[0] == "web":
         if len(args) < 2:
-            typer.echo('Usage: reconx web "URL" [-o REPORT.json|REPORT.csv]')
+            typer.echo(
+                'Usage: reconx web "URL" [-o REPORT.json|REPORT.csv]'
+            )
             return
 
         target = args[1]
@@ -549,7 +630,10 @@ def cli() -> None:
 
     if args[0] in ("lfi", "files"):
         if len(args) < 2:
-            typer.echo(f'Usage: reconx {args[0]} "URL" [-o REPORT.json|REPORT.csv]')
+            typer.echo(
+                f'Usage: reconx {args[0]} "URL" '
+                "[-o REPORT.json|REPORT.csv]"
+            )
             return
 
         target = args[1]
@@ -594,7 +678,9 @@ def cli() -> None:
             output = remaining[index + 1]
             index += 2
         else:
-            typer.echo(f"Error: invalid or incomplete option: {option}")
+            typer.echo(
+                f"Error: invalid or incomplete option: {option}"
+            )
             return
 
     if aggregate:

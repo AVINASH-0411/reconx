@@ -903,3 +903,43 @@ def test_run_aggregate_scan_handles_http_error(
     assert "HTTP analysis skipped: HTTP unavailable" in output
     assert "Aggregate scan completed." in output
     mock_report.assert_called_once()
+
+@patch("reconx.main.write_report")
+@patch("reconx.main.summarize_severities")
+@patch("reconx.main.detect_exposed_files")
+@patch("reconx.main.analyze_http")
+@patch("reconx.main.detect_service")
+@patch("reconx.main.scan_ports")
+def test_run_aggregate_scan_handles_service_error(
+    mock_scan,
+    mock_service,
+    mock_http,
+    mock_exposed,
+    mock_summary,
+    mock_report,
+    capsys,
+):
+    from reconx.main import run_aggregate_scan
+
+    mock_scan.return_value = [80, 443]
+    mock_service.side_effect = [
+        OSError("service detection failed"),
+        "HTTPS",
+    ]
+    mock_http.return_value = {
+        "status_code": 200,
+        "title": "Test",
+        "https": True,
+    }
+    mock_exposed.return_value = []
+    mock_summary.return_value = {}
+
+    run_aggregate_scan("127.0.0.1", "80,443")
+
+    output = capsys.readouterr().out
+
+    assert "service detection failed" in output
+    assert "443/tcp open HTTPS" in output
+    assert "Aggregate scan completed." in output
+    mock_http.assert_any_call("http://127.0.0.1:80")
+    mock_http.assert_any_call("https://127.0.0.1:443")
