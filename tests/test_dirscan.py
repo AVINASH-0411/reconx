@@ -159,13 +159,28 @@ def test_scan_directories_rejects_invalid_threads(tmp_path):
     wordlist = tmp_path / "paths.txt"
     wordlist.write_text("admin\n", encoding="utf-8")
 
-    with pytest.raises(ValueError, match="Threads must be at least 1"):
+    with pytest.raises(ValueError, match="Threads"):
         scan_directories(
             "http://example.test",
             str(wordlist),
             threads=0,
         )
 
+
+@pytest.mark.parametrize("threads", [True, False, 1.5, "2", -1])
+def test_scan_directories_rejects_invalid_thread_types(
+    tmp_path,
+    threads,
+):
+    wordlist = tmp_path / "paths.txt"
+    wordlist.write_text("admin\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="Threads"):
+        scan_directories(
+            "http://example.test",
+            str(wordlist),
+            threads=threads,
+        )
 
 def test_scan_directories_rejects_empty_wordlist(tmp_path):
     wordlist = tmp_path / "empty.txt"
@@ -229,3 +244,21 @@ def test_scan_directories_filters_and_sorts_findings(
     ]
     assert all(item["status"] in {200, 403} for item in findings)
     assert mock_scan.call_count == 3
+
+@pytest.mark.parametrize(
+    "timeout",
+    [0, -1, float("inf"), float("nan"), "5", True],
+)
+def test_scan_directories_rejects_invalid_timeout(
+    tmp_path,
+    timeout,
+):
+    wordlist = tmp_path / "paths.txt"
+    wordlist.write_text("admin\n", encoding="utf-8")
+
+    with pytest.raises(ValueError, match="Timeout"):
+        scan_directories(
+            "http://example.test",
+            str(wordlist),
+            timeout=timeout,
+        )

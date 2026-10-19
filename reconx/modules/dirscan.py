@@ -1,3 +1,4 @@
+import math
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
@@ -89,9 +90,7 @@ def expand_paths(
             continue
 
         for extension in extensions:
-            expanded.add(
-                f"{path}.{extension}"
-            )
+            expanded.add(f"{path}.{extension}")
 
     return sorted(expanded)
 
@@ -163,9 +162,7 @@ def display_progress(
     if total == 0:
         return
 
-    percentage = (
-        completed / total
-    ) * 100
+    percentage = (completed / total) * 100
 
     print(
         f"\rProgress: {completed} / {total} "
@@ -185,37 +182,40 @@ def scan_directories(
 ) -> list[dict]:
     """Scan a target using a wordlist."""
 
-    if not target.startswith(
-        ("http://", "https://")
-    ):
+    if not target.startswith(("http://", "https://")):
         raise ValueError(
             "Target must start with http:// or https://"
         )
 
-    if threads < 1:
+    if (
+        isinstance(threads, bool)
+        or not isinstance(threads, int)
+        or threads < 1
+    ):
         raise ValueError(
-            "Threads must be at least 1."
+            "Threads must be a positive integer."
+        )
+
+    if (
+        isinstance(timeout, bool)
+        or not isinstance(timeout, (int, float))
+        or not math.isfinite(timeout)
+        or timeout <= 0
+    ):
+        raise ValueError(
+            "Timeout must be a finite positive number."
         )
 
     paths = load_wordlist(wordlist)
 
     if not paths:
-        raise ValueError(
-            "Wordlist is empty."
-        )
+        raise ValueError("Wordlist is empty.")
 
-    parsed_extensions = parse_extensions(
-        extensions
-    )
+    parsed_extensions = parse_extensions(extensions)
 
-    paths = expand_paths(
-        paths,
-        parsed_extensions,
-    )
+    paths = expand_paths(paths, parsed_extensions)
 
-    allowed_status_codes = parse_status_codes(
-        status_codes
-    )
+    allowed_status_codes = parse_status_codes(status_codes)
 
     target = normalize_target(target)
 
@@ -223,16 +223,10 @@ def scan_directories(
     completed = 0
     findings = []
 
-    print(
-        f"Entries  : {total}"
-    )
-
+    print(f"Entries  : {total}")
     print()
 
-    with ThreadPoolExecutor(
-        max_workers=threads
-    ) as executor:
-
+    with ThreadPoolExecutor(max_workers=threads) as executor:
         futures = {
             executor.submit(
                 scan_single_path,
@@ -252,15 +246,8 @@ def scan_directories(
                 if result["status"] in allowed_status_codes:
                     findings.append(result)
 
-            display_progress(
-                completed,
-                total,
-            )
+            display_progress(completed, total)
 
     print()
 
-    findings.sort(
-        key=lambda item: item["path"]
-    )
-
-    return findings
+    return sorted(findings, key=lambda item: item["path"])
