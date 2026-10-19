@@ -32,7 +32,10 @@ def test_detect_service_rejects_invalid_port(port):
 
 @pytest.mark.parametrize("timeout", [0, -1, -0.5])
 def test_detect_service_rejects_invalid_timeout(timeout):
-    with pytest.raises(ValueError, match="Timeout must be greater than zero"):
+    with pytest.raises(
+        ValueError,
+        match="Timeout must be a finite positive number",
+    ):
         detect_service("127.0.0.1", 22, timeout=timeout)
 
 
@@ -140,3 +143,12 @@ def test_common_services_contains_expected_ports():
     assert COMMON_SERVICES[80] == "HTTP"
     assert COMMON_SERVICES[443] == "HTTPS"
     assert COMMON_SERVICES[3306] == "MySQL"
+
+
+@pytest.mark.parametrize(
+    "timeout",
+    [float("inf"), float("nan"), "5", True],
+)
+def test_detect_service_rejects_invalid_timeout_types_and_values(timeout):
+    with pytest.raises(ValueError, match="Timeout"):
+        detect_service("127.0.0.1", 22, timeout=timeout)

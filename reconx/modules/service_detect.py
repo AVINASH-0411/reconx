@@ -1,4 +1,4 @@
-
+import math
 import re
 import socket
 
@@ -38,8 +38,13 @@ def detect_service(
     if not 1 <= port <= 65535:
         raise ValueError("Port must be between 1 and 65535.")
 
-    if timeout <= 0:
-        raise ValueError("Timeout must be greater than zero.")
+    if (
+        isinstance(timeout, bool)
+        or not isinstance(timeout, (int, float))
+        or not math.isfinite(timeout)
+        or timeout <= 0
+    ):
+        raise ValueError("Timeout must be a finite positive number.")
 
     fallback = COMMON_SERVICES.get(port, "Unknown")
 
