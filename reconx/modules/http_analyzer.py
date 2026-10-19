@@ -55,9 +55,9 @@ def analyze_http(
     try:
         parsed_url = urlsplit(target)
         hostname = parsed_url.hostname
+        parsed_url.port
     except ValueError as error:
         raise ValueError("Target must be a valid URL") from error
-
     if not hostname:
         raise ValueError("Target must include a valid hostname")
 

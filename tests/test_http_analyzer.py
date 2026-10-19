@@ -111,13 +111,18 @@ def test_analyze_http_counts_redirects(mock_get):
         "example.test",
         "ftp://example.test",
         "https://",
+        "https://example.test:99999",
+        "https://example.test:invalid",
         "https:///missing-host",
         "https://[invalid-ipv6",
     ],
 )
-def test_analyze_http_rejects_malformed_targets(target):
+@patch("reconx.modules.http_analyzer.requests.get")
+def test_analyze_http_rejects_malformed_targets(mock_get, target):
     with pytest.raises(ValueError):
         analyze_http(target)
+
+    mock_get.assert_not_called()
 
 
 @pytest.mark.parametrize(
