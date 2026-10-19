@@ -152,3 +152,15 @@ def test_common_services_contains_expected_ports():
 def test_detect_service_rejects_invalid_timeout_types_and_values(timeout):
     with pytest.raises(ValueError, match="Timeout"):
         detect_service("127.0.0.1", 22, timeout=timeout)
+
+@patch("reconx.modules.service_detect.socket.create_connection")
+def test_detect_service_handles_send_error(mock_connect):
+    sock = Mock()
+    sock.__enter__ = Mock(return_value=sock)
+    sock.__exit__ = Mock(return_value=False)
+    sock.recv.return_value = b""
+    sock.sendall.side_effect = socket.error("send failed")
+    mock_connect.return_value = sock
+
+
+    assert detect_service("127.0.0.1", 22) == "SSH"
