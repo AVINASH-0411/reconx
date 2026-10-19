@@ -46,3 +46,12 @@ def test_scan_port_returns_false_on_socket_error():
         side_effect=socket.error("Connection failed"),
     ):
         assert scan_port("127.0.0.1", 8080) is False
+
+
+@pytest.mark.parametrize(
+    "timeout",
+    [-1, float("inf"), float("nan"), "5", True],
+)
+def test_scan_port_rejects_invalid_timeouts(timeout):
+    with pytest.raises(ValueError, match="Timeout"):
+        scan_port("127.0.0.1", 8080, timeout=timeout)
