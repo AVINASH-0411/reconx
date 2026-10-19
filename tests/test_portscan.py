@@ -55,3 +55,11 @@ def test_scan_port_returns_false_on_socket_error():
 def test_scan_port_rejects_invalid_timeouts(timeout):
     with pytest.raises(ValueError, match="Timeout"):
         scan_port("127.0.0.1", 8080, timeout=timeout)
+
+
+def test_scan_ports_rejects_invalid_port_before_scanning():
+    with patch("reconx.modules.portscan.scan_port") as mock_scan:
+        with pytest.raises(ValueError, match="Invalid port"):
+            scan_ports("127.0.0.1", [80, 81, 70000])
+
+        mock_scan.assert_not_called()

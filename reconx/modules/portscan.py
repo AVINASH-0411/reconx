@@ -31,6 +31,17 @@ def scan_port(target: str, port: int, timeout: float = 0.5) -> bool:
 def scan_ports(target: str, ports: list[int]):
     """Scan a list of TCP ports."""
 
+
+    for port in ports:
+        if (
+            isinstance(port, bool)
+            or not isinstance(port, int)
+            or not 1 <= port <= 65535
+        ):
+            raise ValueError(
+                f"Invalid port: {port}. Must be between 1 and 65535."
+            )
+
     open_ports = []
 
     for port in ports:
