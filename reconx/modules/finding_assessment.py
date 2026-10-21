@@ -7,7 +7,7 @@ SEVERITY_LEVELS = ("INFO", "LOW", "MEDIUM", "HIGH")
 
 
 def _count_evidence(finding: dict[str, Any]) -> int:
-    """Count valid matched items and evidence entries."""
+    """Count unique, valid matched items and evidence entries."""
 
     matched = finding.get("matched", [])
     if not isinstance(matched, list):
@@ -16,20 +16,23 @@ def _count_evidence(finding: dict[str, Any]) -> int:
     evidence = finding.get("evidence", [])
     if isinstance(evidence, list):
         valid_evidence = [
-            item for item in evidence
+            item.strip()
+            for item in evidence
             if isinstance(item, str) and item.strip()
         ]
     elif isinstance(evidence, str) and evidence.strip():
-        valid_evidence = [evidence]
+        valid_evidence = [evidence.strip()]
     else:
         valid_evidence = []
 
     valid_matches = [
-        item for item in matched
+        item.strip()
+        for item in matched
         if isinstance(item, str) and item.strip()
     ]
 
-    return len(valid_matches) + len(valid_evidence)
+    # Duplicate evidence must not inflate confidence.
+    return len(set(valid_matches + valid_evidence))
 
 
 def assess_confidence(finding: dict[str, Any]) -> str:
@@ -82,4 +85,3 @@ def normalize_finding(
     normalized["remediation"] = remediation
 
     return normalized
-

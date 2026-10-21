@@ -136,3 +136,11 @@ def test_assess_finding_counts_matched_and_evidence_items():
 
     assert assessed["confidence"] == "High"
     assert assessed["evidence_count"] == 3
+
+def test_duplicate_evidence_does_not_inflate_confidence():
+    finding = {
+        "status": 200,
+        "evidence": ["DB_PASSWORD", "DB_PASSWORD"],
+    }
+
+    assert assess_confidence(finding) == "Medium"
