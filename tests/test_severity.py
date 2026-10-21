@@ -78,3 +78,14 @@ def test_summarize_empty_findings():
         "HIGH": 0,
     }
 
+def test_none_finding_type_defaults_to_info():
+    assert classify_finding({"type": None}) == "INFO"
+
+
+def test_non_string_finding_type_defaults_to_info():
+    assert classify_finding({"type": ["lfi"]}) == "INFO"
+
+
+def test_non_dict_finding_defaults_safely():
+    assert classify_finding({}) == "INFO"
+
