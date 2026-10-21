@@ -39,8 +39,9 @@ def check_file_evidence(
     text = sample.decode("utf-8", errors="ignore")
     lower_text = text.lower()
 
-    # Ignore HTML pages when checking for exposed-file evidence.
-    if "<html" in lower_text or "<!doctype html" in lower_text:
+    if path != "/phpinfo.php" and (
+        "<html" in lower_text or "<!doctype html" in lower_text
+    ):
         return []
 
     if path == "/.env":
@@ -68,12 +69,24 @@ def check_file_evidence(
             if marker.lower() in lower_text
         ]
     if path == "/phpinfo.php":
-        return [
+        markers = [
             marker
             for marker in SENSITIVE_FILES[path]
             if marker in lower_text
         ]
 
+        has_phpinfo_signature = (
+            "phpinfo()" in lower_text
+            and (
+                "<html" in lower_text
+                or "<!doctype html" in lower_text
+            )
+        )
+
+        if has_phpinfo_signature and len(markers) >= 2:
+            return markers
+
+        return []
     if path == "/backup.zip":
         if sample.startswith(b"PK\x03\x04"):
             return ["ZIP archive signature"]

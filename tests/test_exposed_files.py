@@ -157,3 +157,28 @@ def test_ignores_config_backup_with_unrelated_text():
     )
 
     assert evidence == []
+
+def test_ignores_phpinfo_markers_in_unrelated_text():
+    content = (
+        b"Documentation about phpinfo() and PHP version settings. "
+        b"The configuration file is discussed in this guide."
+    )
+
+    evidence = check_file_evidence("/phpinfo.php", content)
+
+    assert evidence == []
+
+def test_detects_phpinfo_page_evidence():
+    content = (
+        b"<!DOCTYPE html><html><body>"
+        b"<h1>PHP Version 8.3</h1>"
+        b"<a href='phpinfo()'>phpinfo()</a>"
+        b"Configuration File (php.ini) Path"
+        b"</body></html>"
+    )
+
+    evidence = check_file_evidence("/phpinfo.php", content)
+
+    assert "phpinfo()" in evidence
+    assert "php version" in evidence
+    assert "configuration file" in evidence
