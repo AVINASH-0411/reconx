@@ -34,10 +34,50 @@ def extract_title(html: str) -> str:
 def analyze_security_headers(
     headers: requests.structures.CaseInsensitiveDict,
 ) -> dict[str, bool]:
-    """Check whether common security headers are present."""
+    """Check whether common security headers have valid values."""
+
+    def has_valid_value(header_name: str) -> bool:
+        value = headers.get(header_name, "")
+        if not isinstance(value, str) or not value.strip():
+            return False
+
+        normalized = value.strip().lower()
+
+        if header_name == "X-Frame-Options":
+            return normalized in {"deny", "sameorigin"}
+
+        if header_name == "X-Content-Type-Options":
+            return normalized == "nosniff"
+
+        if header_name == "Strict-Transport-Security":
+            return bool(re.search(r"(?:^|;)\s*max-age\s*=\s*\d+", normalized))
+
+        if header_name == "Referrer-Policy":
+            valid_policies = {
+                "no-referrer",
+                "no-referrer-when-downgrade",
+                "origin",
+                "origin-when-cross-origin",
+                "same-origin",
+                "strict-origin",
+                "strict-origin-when-cross-origin",
+                "unsafe-url",
+            }
+            return all(
+                token.strip() in valid_policies
+                for token in normalized.split(",")
+            )
+
+        if header_name in {
+            "Content-Security-Policy",
+            "Permissions-Policy",
+        }:
+            return True
+
+        return False
 
     return {
-        display_name: bool(headers.get(header_name))
+        display_name: has_valid_value(header_name)
         for header_name, display_name in SECURITY_HEADERS.items()
     }
 

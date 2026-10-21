@@ -157,3 +157,23 @@ def test_analyze_http_wraps_timeout_errors(mock_get):
 
     with pytest.raises(ValueError, match="HTTP request failed"):
         analyze_http("https://example.test")
+
+
+def test_analyze_security_headers_rejects_invalid_values():
+    headers = requests.structures.CaseInsensitiveDict({
+        "Content-Security-Policy": "",
+        "X-Frame-Options": "INVALID",
+        "X-Content-Type-Options": "wrong",
+        "Strict-Transport-Security": "",
+        "Referrer-Policy": "unknown-policy",
+        "Permissions-Policy": "",
+    })
+
+    result = analyze_security_headers(headers)
+
+    assert result["CSP"] is False
+    assert result["X-Frame-Options"] is False
+    assert result["X-Content-Type-Options"] is False
+    assert result["HSTS"] is False
+    assert result["Referrer-Policy"] is False
+    assert result["Permissions-Policy"] is False
