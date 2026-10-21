@@ -144,3 +144,15 @@ def test_duplicate_evidence_does_not_inflate_confidence():
     }
 
     assert assess_confidence(finding) == "Medium"
+ 
+def test_duplicate_evidence_across_fields_is_counted_once():
+    finding = {
+        "status": 200,
+        "matched": ["DB_PASSWORD"],
+        "evidence": ["DB_PASSWORD"],
+    }
+
+    assessed = assess_finding(finding)
+
+    assert assessed["evidence_count"] == 1
+    assert assessed["confidence"] == "Medium"
