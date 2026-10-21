@@ -144,3 +144,16 @@ def test_detect_exposed_files_ignores_generic_page_with_marker_name(mock_get):
     findings = detect_exposed_files("http://example.test")
 
     assert findings == []
+
+def test_ignores_config_backup_with_unrelated_text():
+    content = (
+        b"This documentation mentions password and database "
+        b"settings but contains no PHP configuration."
+    )
+
+    evidence = check_file_evidence(
+        "/config.php.bak",
+        content,
+    )
+
+    assert evidence == []

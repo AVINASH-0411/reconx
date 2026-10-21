@@ -59,12 +59,14 @@ def check_file_evidence(
         return []
 
     if path == "/config.php.bak":
+        if "<?php" not in lower_text:
+            return []
+
         return [
             marker
             for marker in SENSITIVE_FILES[path]
             if marker.lower() in lower_text
         ]
-
     if path == "/phpinfo.php":
         return [
             marker
