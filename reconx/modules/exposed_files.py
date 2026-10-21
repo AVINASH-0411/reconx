@@ -1,3 +1,4 @@
+import math
 import requests
 from reconx.modules.finding_assessment import normalize_finding
 
@@ -83,6 +84,14 @@ def detect_exposed_files(
         raise ValueError(
             "Target must start with http:// or https://"
         )
+
+    if (
+        isinstance(timeout, bool)
+        or not isinstance(timeout, (int, float))
+        or not math.isfinite(timeout)
+        or timeout <= 0
+    ):
+        raise ValueError("Timeout must be a finite positive number.")
 
     findings = []
 

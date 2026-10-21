@@ -96,3 +96,12 @@ def test_detect_exposed_files_ignores_non_200_responses(mock_get):
     findings = detect_exposed_files("http://example.test")
 
     assert findings == []
+
+
+@pytest.mark.parametrize(
+    "timeout",
+    [0, -1, float("inf"), float("-inf"), float("nan"), "5", True, False],
+)
+def test_detect_exposed_files_rejects_invalid_timeout(timeout):
+    with pytest.raises(ValueError, match="Timeout must be a finite positive number"):
+        detect_exposed_files("http://example.test", timeout=timeout)
