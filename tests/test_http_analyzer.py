@@ -177,3 +177,22 @@ def test_analyze_security_headers_rejects_invalid_values():
     assert result["HSTS"] is False
     assert result["Referrer-Policy"] is False
     assert result["Permissions-Policy"] is False
+
+def test_analyze_security_headers_accepts_valid_values():
+    headers = requests.structures.CaseInsensitiveDict({
+        "Content-Security-Policy": "default-src 'self'",
+        "X-Frame-Options": "SAMEORIGIN",
+        "X-Content-Type-Options": "nosniff",
+        "Strict-Transport-Security": "max-age=31536000",
+        "Referrer-Policy": "strict-origin-when-cross-origin",
+        "Permissions-Policy": "camera=(), microphone=()",
+    })
+
+    result = analyze_security_headers(headers)
+
+    assert result["CSP"] is True
+    assert result["X-Frame-Options"] is True
+    assert result["X-Content-Type-Options"] is True
+    assert result["HSTS"] is True
+    assert result["Referrer-Policy"] is True
+    assert result["Permissions-Policy"] is True
