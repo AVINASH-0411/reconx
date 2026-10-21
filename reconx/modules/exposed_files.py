@@ -1,6 +1,10 @@
+
 import math
+
 import requests
+
 from reconx.modules.finding_assessment import normalize_finding
+
 
 SENSITIVE_FILES = {
     "/.env": [
@@ -31,27 +35,28 @@ def check_file_evidence(
     content: bytes,
 ) -> list[str]:
     """Check response content for file-specific evidence."""
-
-    text = content[:200_000].decode(
-        "utf-8",
-        errors="ignore",
-    )
-
+    sample = content[:200_000]
+    text = sample.decode("utf-8", errors="ignore")
     lower_text = text.lower()
+
+    # Ignore HTML pages when checking for exposed-file evidence.
+    if "<html" in lower_text or "<!doctype html" in lower_text:
+        return []
 
     if path == "/.env":
         return [
             marker
             for marker in SENSITIVE_FILES[path]
-            if marker.lower() in lower_text
+            if any(
+                line.strip().upper().startswith(marker.upper() + "=")
+                for line in text.splitlines()
+            )
         ]
 
     if path == "/.git/HEAD":
-        return [
-            marker
-            for marker in SENSITIVE_FILES[path]
-            if marker.lower() in lower_text
-        ]
+        if lower_text.strip().startswith("ref: refs/"):
+            return ["ref: refs/"]
+        return []
 
     if path == "/config.php.bak":
         return [
@@ -68,7 +73,7 @@ def check_file_evidence(
         ]
 
     if path == "/backup.zip":
-        if content.startswith(b"PK\x03\x04"):
+        if sample.startswith(b"PK\x03\x04"):
             return ["ZIP archive signature"]
 
     return []
@@ -105,7 +110,6 @@ def detect_exposed_files(
                 allow_redirects=False,
                 stream=True,
             ) as response:
-
                 if response.status_code != 200:
                     continue
 
@@ -145,6 +149,7 @@ def detect_exposed_files(
                         ),
                     )
                 )
+
         except requests.RequestException:
             continue
 

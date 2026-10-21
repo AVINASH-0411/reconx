@@ -105,3 +105,42 @@ def test_detect_exposed_files_ignores_non_200_responses(mock_get):
 def test_detect_exposed_files_rejects_invalid_timeout(timeout):
     with pytest.raises(ValueError, match="Timeout must be a finite positive number"):
         detect_exposed_files("http://example.test", timeout=timeout)
+
+
+@patch("reconx.modules.exposed_files.requests.get")
+def test_detect_exposed_files_ignores_generic_html_page(mock_get):
+    response = Mock()
+    response.status_code = 200
+    response.headers = {"Content-Type": "text/html"}
+    response.raw.read.return_value = (
+        b"<!doctype html><html><body>"
+        b"Page not found - application home page"
+        b"</body></html>"
+    )
+    response.__enter__ = Mock(return_value=response)
+    response.__exit__ = Mock(return_value=False)
+    mock_get.return_value = response
+
+    findings = detect_exposed_files("http://example.test")
+
+    assert findings == []
+    assert mock_get.call_count == 5
+
+
+@patch("reconx.modules.exposed_files.requests.get")
+def test_detect_exposed_files_ignores_generic_page_with_marker_name(mock_get):
+    response = Mock()
+    response.status_code = 200
+    response.headers = {"Content-Type": "text/html"}
+    response.raw.read.return_value = (
+        b"<!doctype html><html><body>"
+        b"Documentation: DB_PASSWORD is an environment variable name."
+        b"</body></html>"
+    )
+    response.__enter__ = Mock(return_value=response)
+    response.__exit__ = Mock(return_value=False)
+    mock_get.return_value = response
+
+    findings = detect_exposed_files("http://example.test")
+
+    assert findings == []
