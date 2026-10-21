@@ -156,3 +156,13 @@ def test_duplicate_evidence_across_fields_is_counted_once():
 
     assert assessed["evidence_count"] == 1
     assert assessed["confidence"] == "Medium"
+
+def test_normalize_finding_uses_default_remediation():
+    result = normalize_finding(
+        {"evidence": ["DB_PASSWORD"]},
+        finding_type="exposed_file",
+    )
+
+    assert isinstance(result["remediation"], str)
+    assert result["remediation"].strip()
+

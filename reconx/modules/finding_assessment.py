@@ -5,6 +5,44 @@ from typing import Any
 CONFIDENCE_LEVELS = ("Low", "Medium", "High")
 SEVERITY_LEVELS = ("INFO", "LOW", "MEDIUM", "HIGH")
 
+DEFAULT_REMEDIATION = {
+    "exposed_file": (
+        "Restrict public access to sensitive files, remove exposed "
+        "secrets, rotate compromised credentials, and verify access "
+        "controls."
+    ),
+    "open_port": (
+        "Verify that the service is required, restrict access to "
+        "trusted hosts, and keep the service securely configured."
+    ),
+    "missing_security_header": (
+        "Configure the appropriate HTTP security header and verify "
+        "the setting against the application's security requirements."
+    ),
+    "directory": (
+        "Review whether the directory must be publicly accessible, "
+        "disable unnecessary directory listing, and restrict sensitive "
+        "content."
+    ),
+    "directory_found": (
+        "Review whether the directory must be publicly accessible, "
+        "disable unnecessary directory listing, and restrict sensitive "
+        "content."
+    ),
+    "open_redirect": (
+        "Validate redirect destinations against an allowlist and avoid "
+        "redirecting users to untrusted URLs."
+    ),
+    "lfi": (
+        "Avoid using untrusted input in filesystem paths, enforce "
+        "strict path allowlists, and apply least-privilege file access."
+    ),
+    "local_file_inclusion": (
+        "Avoid using untrusted input in filesystem paths, enforce "
+        "strict path allowlists, and apply least-privilege file access."
+    ),
+}
+
 
 def _count_evidence(finding: dict[str, Any]) -> int:
     """Count unique, valid matched items and evidence entries."""
@@ -31,7 +69,6 @@ def _count_evidence(finding: dict[str, Any]) -> int:
         if isinstance(item, str) and item.strip()
     ]
 
-    # Duplicate evidence must not inflate confidence.
     return len(set(valid_matches + valid_evidence))
 
 
@@ -82,6 +119,14 @@ def normalize_finding(
         normalized["confidence"] = assess_confidence(normalized)
 
     normalized["evidence_count"] = _count_evidence(normalized)
-    normalized["remediation"] = remediation
+
+    if isinstance(remediation, str) and remediation.strip():
+        normalized["remediation"] = remediation.strip()
+    else:
+        normalized["remediation"] = DEFAULT_REMEDIATION.get(
+            finding_type.strip().lower(),
+            "Review the finding, verify the evidence, and apply "
+            "appropriate security controls based on the confirmed risk.",
+        )
 
     return normalized
