@@ -72,3 +72,43 @@ def test_csv_report_rejects_directory(tmp_path):
             {},
             str(tmp_path),
         )
+
+def test_json_report_preserves_findings_and_summary(tmp_path):
+    output = tmp_path / "report.json"
+
+    findings = [
+        {
+            "type": "exposed_file",
+            "severity": "MEDIUM",
+            "path": "/.env",
+            "confidence": "High",
+            "remediation": "Restrict public access.",
+        }
+    ]
+    summary = {
+        "total_findings": 1,
+        "severity_counts": {
+            "INFO": 0,
+            "LOW": 0,
+            "MEDIUM": 1,
+            "HIGH": 0,
+        },
+    }
+    results = {
+        "findings": findings,
+        "finding_count": 1,
+        "summary": summary,
+    }
+
+    save_json_report(
+        "http://localhost",
+        "exposed_file_detection",
+        results,
+        str(output),
+    )
+
+    report = json.loads(output.read_text(encoding="utf-8"))
+
+    assert report["results"]["findings"] == findings
+    assert report["results"]["finding_count"] == 1
+    assert report["results"]["summary"] == summary
