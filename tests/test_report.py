@@ -195,3 +195,15 @@ def test_csv_report_preserves_nested_findings_and_special_characters(
     exported_findings = json.loads(findings_row[4])
 
     assert exported_findings == results["findings"]
+
+def test_json_report_rejects_unserializable_results(tmp_path):
+    output = tmp_path / "invalid-report.json"
+    results = {"invalid_value": object()}
+
+    with pytest.raises(TypeError):
+        save_json_report(
+            "http://localhost",
+            "test",
+            results,
+            str(output),
+        )
