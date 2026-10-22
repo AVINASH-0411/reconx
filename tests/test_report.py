@@ -112,3 +112,48 @@ def test_json_report_preserves_findings_and_summary(tmp_path):
     assert report["results"]["findings"] == findings
     assert report["results"]["finding_count"] == 1
     assert report["results"]["summary"] == summary
+
+def test_json_report_handles_empty_results(tmp_path):
+    output = tmp_path / "empty-report.json"
+
+    save_json_report(
+        "http://localhost",
+        "test",
+        {},
+        str(output),
+    )
+
+    report = json.loads(output.read_text(encoding="utf-8"))
+
+    assert report["results"] == {}
+    assert report["tool"] == "ReconX"
+    assert report["report_version"] == "1.0"
+
+def test_json_report_preserves_unicode_and_nested_data(tmp_path):
+    output = tmp_path / "unicode-report.json"
+    results = {
+        "findings": [
+            {
+                "path": "/café",
+                "evidence": ["Sensitive file detected"],
+            }
+        ],
+        "metadata": {
+            "region": "Chennai",
+            "checks": ["headers", "exposed_files"],
+        },
+    }
+
+    save_json_report(
+        "http://localhost",
+        "test",
+        results,
+        str(output),
+    )
+
+    report_text = output.read_text(encoding="utf-8")
+    report = json.loads(report_text)
+
+    assert "café" in report_text
+    assert "Sensitive file detected" in report_text
+    assert report["results"] == results
