@@ -1,4 +1,7 @@
+
+import hashlib
 import math
+import uuid
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
 import requests
@@ -31,10 +34,7 @@ def load_wordlist(wordlist: str) -> list[str]:
             for line in file:
                 path = line.strip()
 
-                if not path:
-                    continue
-
-                if path.startswith("#"):
+                if not path or path.startswith("#"):
                     continue
 
                 if not path.startswith("/"):
@@ -110,7 +110,6 @@ def parse_status_codes(
 
         try:
             value = int(code)
-
         except ValueError as error:
             raise ValueError(
                 f"Invalid HTTP status code: {code}"
@@ -126,12 +125,12 @@ def parse_status_codes(
     return result
 
 
-def scan_single_path(
+def _request_path(
     target: str,
     path: str,
     timeout: float,
-) -> dict | None:
-    """Scan one path."""
+) -> tuple[dict, tuple[int, str]] | None:
+    """Request a path and return its result and response fingerprint."""
 
     url = f"{target}{path}"
 
@@ -141,16 +140,54 @@ def scan_single_path(
             timeout=timeout,
             allow_redirects=False,
         )
-
     except requests.RequestException:
         return None
 
-    return {
+    fingerprint = (
+        response.status_code,
+        hashlib.sha256(response.content).hexdigest(),
+    )
+
+    result = {
         "path": path,
         "status": response.status_code,
         "size": len(response.content),
         "url": url,
     }
+
+    return result, fingerprint
+
+
+def scan_single_path(
+    target: str,
+    path: str,
+    timeout: float,
+) -> dict | None:
+    """Scan one path."""
+
+    response = _request_path(target, path, timeout)
+
+    if response is None:
+        return None
+
+    result, _ = response
+    return result
+
+
+def get_response_fingerprint(
+    target: str,
+    path: str,
+    timeout: float,
+) -> tuple[int, str] | None:
+    """Return the HTTP status and SHA-256 hash of a response body."""
+
+    response = _request_path(target, path, timeout)
+
+    if response is None:
+        return None
+
+    _, fingerprint = response
+    return fingerprint
 
 
 def display_progress(
@@ -172,6 +209,7 @@ def display_progress(
     )
 
 
+
 def scan_directories(
     target: str,
     wordlist: str,
@@ -180,7 +218,7 @@ def scan_directories(
     status_codes: str | None = None,
     timeout: float = 5.0,
 ) -> list[dict]:
-    """Scan a target using a wordlist."""
+    """Scan a target and filter matching fallback responses."""
 
     if not target.startswith(("http://", "https://")):
         raise ValueError(
@@ -212,12 +250,16 @@ def scan_directories(
         raise ValueError("Wordlist is empty.")
 
     parsed_extensions = parse_extensions(extensions)
-
     paths = expand_paths(paths, parsed_extensions)
-
     allowed_status_codes = parse_status_codes(status_codes)
-
     target = normalize_target(target)
+
+    baseline_path = f"/.reconx-not-found-{uuid.uuid4().hex}"
+    baseline = get_response_fingerprint(
+        target,
+        baseline_path,
+        timeout,
+    )
 
     total = len(paths)
     completed = 0
@@ -239,15 +281,31 @@ def scan_directories(
 
         for future in as_completed(futures):
             completed += 1
-
             result = future.result()
 
-            if result is not None:
-                if result["status"] in allowed_status_codes:
+            if (
+                result is not None
+                and result["status"] in allowed_status_codes
+            ):
+                candidate_fingerprint = get_response_fingerprint(
+                    target,
+                    result["path"],
+                    timeout,
+                )
+
+                is_fallback = (
+                    baseline is not None
+                    and candidate_fingerprint == baseline
+                )
+
+                if not is_fallback:
                     findings.append(result)
 
             display_progress(completed, total)
 
     print()
 
-    return sorted(findings, key=lambda item: item["path"])
+    return sorted(
+        findings,
+        key=lambda item: item["path"],
+    )
