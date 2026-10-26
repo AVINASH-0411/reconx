@@ -609,7 +609,15 @@ def cli() -> None:
         return
 
     if args[0] == "web":
+        if args[1:] in (["--help"], ["-h"]):
+            typer.echo(
+                'Usage: reconx web "URL" [-o REPORT.json|REPORT.csv]\n'
+                "Analyze HTTP response details and security headers."
+            )
+            return
+
         if len(args) < 2:
+
             typer.echo(
                 'Usage: reconx web "URL" [-o REPORT.json|REPORT.csv]'
             )
@@ -629,6 +637,22 @@ def cli() -> None:
         return
 
     if args[0] in ("lfi", "files"):
+
+        if args[1:] in (["--help"], ["-h"]):
+            if args[0] == "lfi":
+                typer.echo(
+                    'Usage: reconx lfi "URL?parameter=value" '
+                    "[-o REPORT.json|REPORT.csv]\n"
+                    "Test query parameters for local file inclusion."
+                )
+            else:
+                typer.echo(
+                    'Usage: reconx files "URL" '
+                    "[-o REPORT.json|REPORT.csv]\n"
+                    "Check for potentially exposed files."
+                )
+            return
+
         if len(args) < 2:
             typer.echo(
                 f'Usage: reconx {args[0]} "URL" '
