@@ -162,17 +162,10 @@ def scan_single_path(
     target: str,
     path: str,
     timeout: float,
-) -> dict | None:
-    """Scan one path."""
+) -> tuple[dict, tuple[int, str]] | None:
+    """Scan one path and return its result and fingerprint."""
 
-    response = _request_path(target, path, timeout)
-
-    if response is None:
-        return None
-
-    result, _ = response
-    return result
-
+    return _request_path(target, path, timeout)
 
 def get_response_fingerprint(
     target: str,
@@ -281,28 +274,21 @@ def scan_directories(
 
         for future in as_completed(futures):
             completed += 1
-            result = future.result()
+            response = future.result()
 
-            if (
-                result is not None
-                and result["status"] in allowed_status_codes
-            ):
-                candidate_fingerprint = get_response_fingerprint(
-                    target,
-                    result["path"],
-                    timeout,
-                )
+            if response is not None:
+                result, candidate_fingerprint = response
 
-                is_fallback = (
-                    baseline is not None
-                    and candidate_fingerprint == baseline
-                )
+                if result["status"] in allowed_status_codes:
+                    is_fallback = (
+                        baseline is not None
+                        and candidate_fingerprint == baseline
+                    )
 
-                if not is_fallback:
-                    findings.append(result)
+                    if not is_fallback:
+                        findings.append(result)
 
             display_progress(completed, total)
-
     print()
 
     return sorted(

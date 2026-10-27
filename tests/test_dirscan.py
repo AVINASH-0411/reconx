@@ -115,13 +115,20 @@ def test_scan_single_path_success(mock_get):
         3.0,
     )
 
-    assert result == {
-        "path": "/admin",
-        "status": 200,
-        "size": 5,
-        "url": "http://example.test/admin",
-    }
+    import hashlib
 
+    assert result == (
+        {
+            "path": "/admin",
+            "status": 200,
+            "size": 5,
+            "url": "http://example.test/admin",
+        },
+        (
+            200,
+            hashlib.sha256(b"hello").hexdigest(),
+        ),
+    )
     mock_get.assert_called_once_with(
         "http://example.test/admin",
         timeout=3.0,
@@ -227,8 +234,15 @@ def test_scan_directories_filters_and_sorts_findings(
                 "url": "http://example.test/missing",
             },
         }
-        return results[path]
+        result = results[path]
+        body = f"body-for-{path}".encode()
 
+        import hashlib
+
+        return result, (
+            result["status"],
+            hashlib.sha256(body).hexdigest(),
+        )
     mock_scan.side_effect = fake_scan
 
     findings = scan_directories(
