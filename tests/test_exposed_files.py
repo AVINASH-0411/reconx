@@ -182,3 +182,16 @@ def test_detects_phpinfo_page_evidence():
     assert "phpinfo()" in evidence
     assert "php version" in evidence
     assert "configuration file" in evidence
+
+@patch("reconx.modules.exposed_files.requests.get")
+def test_detect_exposed_files_handles_request_errors(mock_get):
+    import requests
+
+    mock_get.side_effect = requests.RequestException(
+        "Connection failed"
+    )
+
+    findings = detect_exposed_files("http://example.test")
+
+    assert findings == []
+    assert mock_get.call_count == 5
