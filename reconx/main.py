@@ -681,13 +681,13 @@ def cli() -> None:
         dir_app()
         return
 
-    target = args[0]
-    remaining = args[1:]
+    remaining = args.copy()
     aggregate = "-a" in remaining
 
     if aggregate:
         remaining.remove("-a")
 
+    target = None
     port_spec = "1-1000"
     output = None
     index = 0
@@ -695,23 +695,38 @@ def cli() -> None:
     while index < len(remaining):
         option = remaining[index]
 
-        if option in ("-p", "--port") and index + 1 < len(remaining):
+        if option in ("-p", "--port"):
+            if index + 1 >= len(remaining):
+                typer.echo("Error: missing port value.")
+                return
+
             port_spec = remaining[index + 1]
             index += 2
-        elif option in ("-o", "--output") and index + 1 < len(remaining):
+
+        elif option in ("-o", "--output"):
+            if index + 1 >= len(remaining):
+                typer.echo("Error: missing output filename.")
+                return
+
             output = remaining[index + 1]
             index += 2
+
+        elif target is None:
+            target = option
+            index += 1
+
         else:
-            typer.echo(
-                f"Error: invalid or incomplete option: {option}"
-            )
+            typer.echo(f"Error: invalid or incomplete option: {option}")
             return
+
+    if target is None:
+        typer.echo("Error: missing target.")
+        return
 
     if aggregate:
         run_aggregate_scan(target, port_spec, output)
     else:
         run_scan(target, port_spec, output)
-
 
 if __name__ == "__main__":
     cli()
