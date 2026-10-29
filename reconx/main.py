@@ -596,7 +596,7 @@ def show_help() -> None:
     )
 
 
-def cli() -> None:
+def _cli() -> None:
     """ReconX command-line entry point."""
     args = sys.argv[1:]
 
@@ -728,6 +728,14 @@ def cli() -> None:
     else:
         run_scan(target, port_spec, output)
 
+def cli() -> None:
+    """CLI entry point with clean Ctrl+C handling."""
+    try:
+        _cli()
+    except KeyboardInterrupt:
+        typer.echo("\n[!] Scan interrupted by user.")
+        raise SystemExit(130)
+
+
 if __name__ == "__main__":
     cli()
-
