@@ -14,9 +14,11 @@ from reconx.modules.service_detect import detect_service
 
 
 def parse_ports(port_spec: str) -> list[int]:
-    """Parse ports such as 80, 22,80,443, or 1-100."""
-    ports = set()
+    """Parse ports, ranges, or '-' for all TCP ports."""
+    if port_spec == "-":
+        return list(range(1, 65536))
 
+    ports = set()
     for part in port_spec.split(","):
         part = part.strip()
 
@@ -588,7 +590,7 @@ def show_help() -> None:
         "       reconx dir TARGET -w WORDLIST [-o REPORT.json|REPORT.csv]\n"
         "       reconx files TARGET [-o REPORT.json|REPORT.csv]\n\n"
         "Options:\n"
-        "  -p, --port TEXT   Ports: 80, 22,80,443, or 1-1000.\n"
+        "  -p, --port TEXT   Ports: 22,80,443, or 1-1000; -p- scans all ports.\n"
         "  -a                Run aggregate scan.\n"
         "  -o, --output PATH Save results as .json or .csv.\n"
         "  -v, --version     Show ReconX version.\n"
@@ -695,7 +697,11 @@ def _cli() -> None:
     while index < len(remaining):
         option = remaining[index]
 
-        if option in ("-p", "--port"):
+        if option == "-p-":
+            port_spec = "-"
+            index += 1
+
+        elif option in ("-p", "--port"):
             if index + 1 >= len(remaining):
                 typer.echo("Error: missing port value.")
                 return
