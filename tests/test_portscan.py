@@ -35,11 +35,16 @@ def test_scan_port_rejects_nonpositive_timeout():
 
 
 def test_scan_ports_returns_only_open_ports():
+    def mock_scan_port(target, port, timeout):
+        return port in (80, 82)
+
     with patch(
         "reconx.modules.portscan.scan_port",
-        side_effect=[True, False, True],
+        side_effect=mock_scan_port,
     ):
         assert scan_ports("127.0.0.1", [80, 81, 82]) == [80, 82]
+
+
 def test_scan_port_returns_false_on_socket_error():
     with patch(
         "reconx.modules.portscan.socket.socket",
@@ -63,3 +68,19 @@ def test_scan_ports_rejects_invalid_port_before_scanning():
             scan_ports("127.0.0.1", [80, 81, 70000])
 
         mock_scan.assert_not_called()
+
+def test_scan_ports_returns_sorted_open_ports():
+    def mock_scan_port(target, port, timeout):
+        return port in (2, 4, 6)
+
+    with patch(
+        "reconx.modules.portscan.scan_port",
+        side_effect=mock_scan_port,
+    ):
+        result = scan_ports(
+            "127.0.0.1",
+            [1, 2, 3, 4, 5, 6, 7, 8],
+            workers=1,
+        )
+
+    assert result == [2, 4, 6]
