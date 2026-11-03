@@ -63,6 +63,12 @@ Replace the example targets with systems you own or have permission to assess.
 reconx 127.0.0.1
 reconx example.com
 ```
+Scan all TCP ports (1–65535):
+
+```bash
+reconx -p- 127.0.0.1
+reconx -p- example.com
+```
 
 Scan specific ports:
 
