@@ -1,19 +1,21 @@
 # ReconX
 
-ReconX is a lightweight Python-based reconnaissance and security assessment CLI tool designed to help identify exposed services, web security issues, and potential misconfigurations.
+**ReconX** is a lightweight Python-based reconnaissance and security assessment CLI tool designed to help identify exposed network services, analyze web security configurations, and detect potential security issues.
+
+It brings multiple reconnaissance and security assessment capabilities together through a single command-line interface.
 
 ## Features
 
-- TCP Port Scanning
-- Basic Service Detection
-- HTTP Analysis
-- Security Header Analysis
-- Local File Inclusion (LFI) Detection
-- Directory Scanning
-- Exposed File Detection
-- Aggregate Security Scanning
-- JSON and CSV Report Export
-- Scan Summary and Severity Counts
+- **TCP Port Scanning** – Scan default, selected, or full TCP port ranges.
+- **Basic Service Detection** – Identify services running on discovered open ports.
+- **HTTP Analysis** – Analyze HTTP responses and related information.
+- **Security Header Analysis** – Inspect HTTP security headers.
+- **Local File Inclusion (LFI) Detection** – Test for potential file inclusion vulnerabilities.
+- **Directory Scanning** – Discover accessible directories and resources.
+- **Exposed File Detection** – Check for potentially exposed files.
+- **Aggregate Security Scanning** – Run combined security assessment checks.
+- **JSON and CSV Report Export** – Save scan results in structured formats.
+- **Scan Summary and Severity Counts** – Display findings and severity summaries.
 
 ## Requirements
 
@@ -26,15 +28,29 @@ ReconX is a lightweight Python-based reconnaissance and security assessment CLI 
 
 ### Method 1: Install using pipx (Recommended)
 
+Install ReconX directly from GitHub:
+
 ```bash
 pipx install git+https://github.com/AVINASH-0411/reconx.git
 ```
 
 ### Method 2: Install using Git
 
+Clone the repository:
+
 ```bash
 git clone https://github.com/AVINASH-0411/reconx.git
+```
+
+Navigate to the project directory:
+
+```bash
 cd reconx
+```
+
+Install ReconX:
+
+```bash
 pipx install .
 ```
 
@@ -48,6 +64,8 @@ pipx install --force git+https://github.com/AVINASH-0411/reconx.git
 
 ### Verify Installation
 
+Check the installed version and available commands:
+
 ```bash
 reconx --version
 reconx --help
@@ -55,85 +73,109 @@ reconx --help
 
 ## Usage
 
-Replace the example targets with systems you own or have permission to assess.
+Replace the example targets with systems you own or have explicit permission to assess.
 
 ### 1. TCP Port Scanner
+
+Scan a target using the default port configuration:
 
 ```bash
 reconx 127.0.0.1
 reconx example.com
 ```
-Scan all TCP ports (1–65535):
+
+**Scan all TCP ports (1–65535):**
 
 ```bash
 reconx -p- 127.0.0.1
 reconx -p- example.com
 ```
 
-Scan specific ports:
+**Scan specific ports:**
 
 ```bash
 reconx -p 80 example.com
 reconx example.com -p 80
-reconx example.com -p 22,80,443
-reconx example.com -p 1-1000
+reconx -p 22,80,443 example.com
+```
+
+**Scan a port range:**
+
+```bash
+reconx -p 1-1000 example.com
 ```
 
 ### 2. Aggregate Scan
 
-Run the combined scan:
+Run the combined security scan:
 
 ```bash
 reconx -a example.com
+```
+
+Specify ports for the aggregate scan:
+
+```bash
 reconx -a example.com -p 80,443
 ```
 
 ### 3. HTTP Analyzer
 
+Analyze an HTTP target:
+
 ```bash
 reconx web https://example.com
 ```
 
-Analyzes HTTP response details, redirects, HTTPS availability, response time, and security headers.
+The HTTP analyzer examines response details, redirects, HTTPS availability, response time, and security headers.
 
 ### 4. LFI Detector
+
+Test an authorized web application endpoint:
 
 ```bash
 reconx lfi "https://authorized-target.example/page?file=test"
 ```
 
-Export results:
+**Export results as JSON:**
 
 ```bash
 reconx lfi "https://authorized-target.example/page?file=test" -o lfi-results.json
+```
+
+**Export results as CSV:**
+
+```bash
 reconx lfi "https://authorized-target.example/page?file=test" -o lfi-results.csv
 ```
 
 ### 5. Directory Scanner
 
+Scan directories on an authorized target using a wordlist:
+
 ```bash
 reconx dir https://authorized-target.example -w wordlist.txt
 ```
 
-Set the number of threads:
+**Set the number of threads:**
 
 ```bash
 reconx dir https://authorized-target.example -w wordlist.txt -t 20
 ```
 
-Check file extensions:
+**Check file extensions:**
 
 ```bash
 reconx dir https://authorized-target.example -w wordlist.txt -x php,txt,bak
 ```
 
-Filter status codes:
+**Filter HTTP status codes:**
 
 ```bash
 reconx dir https://authorized-target.example -w wordlist.txt -s 200,301,403
 ```
 
-Save results:
+**Save scan results:**
 
 ```bash
 reconx dir https://authorized-target.example -w wordlist.txt -o directory-results.json
@@ -141,30 +183,49 @@ reconx dir https://authorized-target.example -w wordlist.txt -o directory-result
 
 ### 6. Exposed File Detection
 
+Check an authorized web application for potentially exposed files:
+
 ```bash
 reconx files https://authorized-target.example
 ```
 
-Save results:
+**Export results as JSON:**
 
 ```bash
 reconx files https://authorized-target.example -o exposed-files.json
+```
+
+**Export results as CSV:**
+
+```bash
 reconx files https://authorized-target.example -o exposed-files.csv
 ```
 
 ### 7. Export Scan Reports
 
-Save port scan results:
+Save TCP port scan results in JSON format:
 
 ```bash
 reconx example.com -p 80,443 -o report.json
+```
+
+Save TCP port scan results in CSV format:
+
+```bash
 reconx example.com -p 80,443 -o report.csv
 ```
 
 ## Help Commands
 
+View the main help menu:
+
 ```bash
 reconx --help
+```
+
+View help for individual modules:
+
+```bash
 reconx web --help
 reconx lfi --help
 reconx dir --help
@@ -173,14 +234,28 @@ reconx files --help
 
 ## Version
 
+Check the installed ReconX version:
+
 ```bash
 reconx --version
 ```
 
 ## Responsible Use
 
-ReconX is intended for authorized security testing and defensive security assessments. Only scan systems for which you have explicit permission. The user is responsible for complying with applicable laws and organizational policies.
+ReconX is intended for authorized security testing and defensive security assessments.
+
+- Only scan systems for which you have explicit permission.
+- Perform security assessments within an authorized scope.
+- Follow applicable laws and organizational security policies.
+- Use the tool responsibly and avoid disrupting services or systems.
+
+The user is responsible for ensuring that all security testing is properly authorized.
 
 ## License
 
-See the repository's license file for licensing terms.
+Copyright (c) 2026 Avinash. All rights reserved.
+
+This repository is publicly available for viewing and cloning.
+No permission is granted to use, modify, redistribute, or
+incorporate this code into other projects without prior
+written permission from the copyright holder.
