@@ -36,21 +36,24 @@ def test_detect_passwd_evidence():
     assert "daemon:x:1:1:" in evidence
 
 
-def test_detect_hostname_evidence():
-    assert detect_file_evidence(
-        "/etc/hostname",
-        "localhost",
-    ) == ["localhost"]
-
-
 def test_detect_hosts_evidence():
     evidence = detect_file_evidence(
         "/etc/hosts",
-        "127.0.0.1 localhost",
+        "127.0.0.1 localhost\n"
+        "127.0.1.1 kali\n"
+        "::1 localhost ip6-localhost",
     )
 
-    assert evidence == ["127.0.0.1", "localhost"]
+    assert len(evidence) >= 2
 
+
+def test_detect_hosts_rejects_unrelated_substrings():
+    evidence = detect_file_evidence(
+        "/etc/hosts",
+        "127.0.0.1 is used in localhost testing.",
+    )
+
+    assert evidence == []
 
 def test_unrecognized_file_has_no_evidence():
     assert detect_file_evidence(
@@ -62,7 +65,6 @@ def test_unrecognized_file_has_no_evidence():
 def test_required_evidence_counts():
     assert required_evidence_matches("/etc/passwd") == 2
     assert required_evidence_matches("/etc/hosts") == 2
-    assert required_evidence_matches("/etc/hostname") == 1
     assert required_evidence_matches("/unknown/file") == 1
 
 
@@ -96,18 +98,18 @@ def test_test_lfi_rejects_url_without_parameters():
 
 
 @patch("reconx.modules.lfi.requests.get")
-def test_test_lfi_ignores_request_errors(mock_get):
+def test_test_lfi_raises_when_all_requests_fail(mock_get):
     mock_get.side_effect = requests.ConnectionError(
         "connection failed"
     )
 
-    findings = run_lfi_test(
-        "http://example.test/page?file=test"
-    )
-
-    assert findings == []
-    assert mock_get.called
-
+    with pytest.raises(
+        requests.RequestException,
+        match="All LFI test requests failed",
+    ):
+        run_lfi_test(
+            "http://example.test/page?file=test"
+        )
 
 @patch("reconx.modules.lfi.requests.get")
 def test_test_lfi_detects_passwd_evidence(mock_get):
@@ -137,6 +139,22 @@ def test_test_lfi_ignores_ordinary_page_content(mock_get):
     response = Mock()
     response.status_code = 200
     response.text = "Welcome to the website"
+    mock_get.return_value = response
+
+    findings = run_lfi_test(
+        "http://example.test/page?file=test"
+    )
+
+    assert findings == []
+
+@patch("reconx.modules.lfi.requests.get")
+def test_test_lfi_ignores_non_success_status(mock_get):
+    response = Mock()
+    response.status_code = 404
+    response.text = (
+        "root:x:0:0:root:/root:/bin/bash\n"
+        "daemon:x:1:1:daemon:/usr/sbin:/usr/sbin/nologin"
+    )
     mock_get.return_value = response
 
     findings = run_lfi_test(

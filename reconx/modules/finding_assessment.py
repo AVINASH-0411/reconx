@@ -45,13 +45,22 @@ DEFAULT_REMEDIATION = {
 
 
 def _count_evidence(finding: dict[str, Any]) -> int:
-    """Count unique, valid matched items and evidence entries."""
-
     matched = finding.get("matched", [])
-    if not isinstance(matched, list):
-        matched = []
+
+    if isinstance(matched, list):
+        valid_matches = [
+            item.strip()
+            for item in matched
+            if isinstance(item, str) and item.strip()
+        ]
+    else:
+        valid_matches = []
+
+    if valid_matches:
+        return len(set(valid_matches))
 
     evidence = finding.get("evidence", [])
+
     if isinstance(evidence, list):
         valid_evidence = [
             item.strip()
@@ -63,14 +72,7 @@ def _count_evidence(finding: dict[str, Any]) -> int:
     else:
         valid_evidence = []
 
-    valid_matches = [
-        item.strip()
-        for item in matched
-        if isinstance(item, str) and item.strip()
-    ]
-
-    return len(set(valid_matches + valid_evidence))
-
+    return len(set(valid_evidence))
 
 def assess_confidence(finding: dict[str, Any]) -> str:
     """Estimate confidence from available detection evidence."""

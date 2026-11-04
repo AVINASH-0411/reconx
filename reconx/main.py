@@ -1,6 +1,7 @@
 
 import sys
 
+import requests
 import typer
 
 from reconx.modules.severity import summarize_severities
@@ -231,7 +232,7 @@ def run_lfi(
 
     try:
         findings = test_lfi(target)
-    except (ValueError, OSError) as error:
+    except (ValueError, OSError, requests.RequestException) as error:
         typer.echo(f"[!] LFI Error: {error}")
         return
 
@@ -295,7 +296,7 @@ def run_directory_scan(
             extensions=extensions,
             status_codes=status_codes,
         )
-    except (ValueError, OSError) as error:
+    except (ValueError, OSError, requests.RequestException) as error:
         typer.echo(f"[!] Directory Scan Error: {error}")
         return
 

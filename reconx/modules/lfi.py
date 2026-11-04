@@ -1,3 +1,5 @@
+import ipaddress
+import re
 import requests
 from reconx.modules.finding_assessment import assess_finding
 from urllib.parse import urlparse, parse_qsl, urlencode, urlunparse
@@ -5,7 +7,6 @@ from urllib.parse import urlparse, parse_qsl, urlencode, urlunparse
 
 CANDIDATE_PATHS = [
     "/etc/passwd",
-    "/etc/hostname",
     "/etc/hosts",
 ]
 
@@ -22,39 +23,45 @@ def generate_traversal_paths(path: str) -> list[str]:
         f"../../../../{clean_path}",
     ]
 
-
 def detect_file_evidence(
     candidate_path: str,
     response_text: str,
 ) -> list[str]:
     """Return recognizable evidence for the candidate file."""
 
-    evidence_patterns = {
-        "/etc/passwd": [
+    if candidate_path == "/etc/passwd":
+        patterns = [
             "root:x:0:0:",
             "daemon:x:1:1:",
             "www-data:x:",
-        ],
-        "/etc/hostname": [
-            "localhost",
-        ],
-        "/etc/hosts": [
-            "127.0.0.1",
-            "localhost",
-        ],
-    }
+        ]
 
-    patterns = evidence_patterns.get(
-        candidate_path,
-        [],
-    )
+        return [
+            pattern
+            for pattern in patterns
+            if pattern in response_text
+        ]
 
-    return [
-        pattern
-        for pattern in patterns
-        if pattern in response_text
-    ]
+    if candidate_path == "/etc/hosts":
+        evidence = []
 
+        for line in response_text.splitlines():
+            parts = line.split()
+
+            if len(parts) < 2:
+                continue
+
+            try:
+                ipaddress.ip_address(parts[0])
+            except ValueError:
+                continue
+
+            if parts[1].lower() == "localhost":
+                evidence.append(line.strip())
+
+        return evidence
+
+    return []
 
 def required_evidence_matches(candidate_path: str) -> int:
     """Return the minimum evidence required for a candidate."""
@@ -64,9 +71,6 @@ def required_evidence_matches(candidate_path: str) -> int:
 
     if candidate_path == "/etc/hosts":
         return 2
-
-    if candidate_path == "/etc/hostname":
-        return 1
 
     return 1
 
@@ -135,6 +139,8 @@ def test_lfi(
         )
 
     findings = []
+    successful_requests = 0
+    failed_requests = 0
 
     for parameter in parameters:
 
@@ -159,6 +165,11 @@ def test_lfi(
                     )
 
                 except requests.RequestException:
+                    failed_requests += 1
+                    continue
+                successful_requests += 1
+
+                if not 200 <= response.status_code < 300:
                     continue
 
                 evidence_matches = detect_file_evidence(
@@ -187,5 +198,10 @@ def test_lfi(
                     findings.append(assess_finding(finding))
 
                     break
+
+    if successful_requests == 0 and failed_requests > 0:
+        raise requests.RequestException(
+            "All LFI test requests failed. Scan could not complete."
+        )
 
     return findings

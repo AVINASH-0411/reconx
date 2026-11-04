@@ -254,6 +254,12 @@ def scan_directories(
         timeout,
     )
 
+    if baseline is None:
+        raise requests.RequestException(
+        "Unable to establish baseline response. "
+        "Directory scan cannot safely continue."
+    )
+
     total = len(paths)
     completed = 0
     findings = []

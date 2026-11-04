@@ -204,6 +204,7 @@ def test_scan_directories_rejects_empty_wordlist(tmp_path):
 def test_scan_directories_filters_and_sorts_findings(
     mock_scan,
     tmp_path,
+    monkeypatch,
 ):
     wordlist = tmp_path / "paths.txt"
     wordlist.write_text(
@@ -244,6 +245,11 @@ def test_scan_directories_filters_and_sorts_findings(
             hashlib.sha256(body).hexdigest(),
         )
     mock_scan.side_effect = fake_scan
+
+    monkeypatch.setattr(
+        "reconx.modules.dirscan.get_response_fingerprint",
+        lambda *args: (404, "baseline-hash"),
+    )
 
     findings = scan_directories(
         "http://example.test/",

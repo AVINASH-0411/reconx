@@ -125,7 +125,7 @@ def test_assess_confidence_ignores_invalid_evidence():
     assert assess_confidence(finding) == "Low"
 
 
-def test_assess_finding_counts_matched_and_evidence_items():
+def test_assess_finding_counts_matched_indicators_only():
     finding = {
         "matched": ["DB_PASSWORD", "SECRET_KEY"],
         "evidence": ["credentials found"],
@@ -135,7 +135,7 @@ def test_assess_finding_counts_matched_and_evidence_items():
     assessed = assess_finding(finding)
 
     assert assessed["confidence"] == "High"
-    assert assessed["evidence_count"] == 3
+    assert assessed["evidence_count"] == 2
 
 def test_duplicate_evidence_does_not_inflate_confidence():
     finding = {
@@ -166,3 +166,14 @@ def test_normalize_finding_uses_default_remediation():
     assert isinstance(result["remediation"], str)
     assert result["remediation"].strip()
 
+def test_description_does_not_inflate_matched_evidence():
+    finding = {
+        "matched": ["localhost"],
+        "evidence": "Evidence for /etc/hostname detected",
+        "status": 200,
+    }
+
+    assessed = assess_finding(finding)
+
+    assert assessed["evidence_count"] == 1
+    assert assessed["confidence"] == "Medium"
