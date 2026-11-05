@@ -265,6 +265,64 @@ def test_scan_directories_filters_and_sorts_findings(
     assert all(item["status"] in {200, 403} for item in findings)
     assert mock_scan.call_count == 3
 
+
+
+def test_scan_directories_stops_when_baseline_fails(
+    tmp_path,
+    monkeypatch,
+):
+
+    wordlist = tmp_path / "paths.txt"
+    wordlist.write_text("admin\n", encoding="utf-8")
+
+    monkeypatch.setattr(
+        "reconx.modules.dirscan.get_response_fingerprint",
+        lambda *args: None,
+    )
+
+    with pytest.raises(
+        requests.RequestException,
+        match="Unable to establish baseline response",
+    ):
+        scan_directories(
+            "http://example.test",
+            str(wordlist),
+        )
+
+def test_scan_directories_filters_baseline_match(
+    tmp_path,
+    monkeypatch,
+):
+    wordlist = tmp_path / "paths.txt"
+    wordlist.write_text("missing\n", encoding="utf-8")
+
+    baseline = (404, "same-hash")
+
+    monkeypatch.setattr(
+        "reconx.modules.dirscan.get_response_fingerprint",
+        lambda *args: baseline,
+    )
+
+    monkeypatch.setattr(
+        "reconx.modules.dirscan.scan_single_path",
+        lambda *args: (
+            {
+                "path": "/missing",
+                "status": 404,
+                "size": 10,
+                "url": "http://example.test/missing",
+            },
+            baseline,
+        ),
+    )
+
+    findings = scan_directories(
+        "http://example.test",
+        str(wordlist),
+    )
+
+    assert findings == []
+
 @pytest.mark.parametrize(
     "timeout",
     [0, -1, float("inf"), float("nan"), "5", True],

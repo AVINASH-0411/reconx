@@ -177,3 +177,20 @@ def test_description_does_not_inflate_matched_evidence():
 
     assert assessed["evidence_count"] == 1
     assert assessed["confidence"] == "Medium"
+
+def test_medium_confidence_with_evidence_and_forbidden_status():
+    finding = {
+        "status": 403,
+        "evidence": ["DB_PASSWORD"],
+    }
+
+    assert assess_confidence(finding) == "Medium"
+
+
+def test_low_confidence_with_success_status_but_no_evidence():
+    finding = {
+        "status": 200,
+        "evidence": [],
+    }
+
+    assert assess_confidence(finding) == "Low"

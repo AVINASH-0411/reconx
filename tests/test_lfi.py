@@ -162,3 +162,22 @@ def test_test_lfi_ignores_non_success_status(mock_get):
     )
 
     assert findings == []
+
+@patch("reconx.modules.lfi.requests.get")
+def test_test_lfi_detects_hosts_evidence(mock_get):
+    response = Mock()
+    response.status_code = 200
+    response.text = (
+        "127.0.0.1 localhost\n"
+        "::1 localhost ip6-localhost\n"
+    )
+    mock_get.return_value = response
+
+    findings = run_lfi_test(
+        "http://example.test/page?file=test"
+    )
+
+    assert len(findings) == 1
+    assert findings[0]["candidate"] == "/etc/hosts"
+    assert findings[0]["status"] == 200
+    assert len(findings[0]["matched"]) >= 2
