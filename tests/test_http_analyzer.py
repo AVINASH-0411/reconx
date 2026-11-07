@@ -196,3 +196,40 @@ def test_analyze_security_headers_accepts_valid_values():
     assert result["HSTS"] is True
     assert result["Referrer-Policy"] is True
     assert result["Permissions-Policy"] is True
+
+def test_analyze_security_headers_rejects_invalid_csp():
+    headers = requests.structures.CaseInsensitiveDict({
+        "Content-Security-Policy": "hello",
+    })
+
+    result = analyze_security_headers(headers)
+
+    assert result["CSP"] is False
+
+def test_analyze_security_headers_rejects_invalid_permissions_policy():
+    headers = requests.structures.CaseInsensitiveDict({
+        "Permissions-Policy": "hello",
+    })
+
+    result = analyze_security_headers(headers)
+
+    assert result["Permissions-Policy"] is False
+
+def test_analyze_security_headers_rejects_unknown_csp_directive():
+    headers = requests.structures.CaseInsensitiveDict({
+        "Content-Security-Policy": "default-src 'self'; invalid something",
+    })
+
+    result = analyze_security_headers(headers)
+
+    assert result["CSP"] is False
+
+
+def test_analyze_security_headers_rejects_invalid_permissions_policy_value():
+    headers = requests.structures.CaseInsensitiveDict({
+        "Permissions-Policy": "camera=invalid",
+    })
+
+    result = analyze_security_headers(headers)
+
+    assert result["Permissions-Policy"] is False

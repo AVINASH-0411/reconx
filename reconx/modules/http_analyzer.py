@@ -1,3 +1,4 @@
+
 import math
 import re
 import time
@@ -34,10 +35,11 @@ def extract_title(html: str) -> str:
 def analyze_security_headers(
     headers: requests.structures.CaseInsensitiveDict,
 ) -> dict[str, bool]:
-    """Check whether common security headers have valid values."""
+    """Check whether common security headers have structurally valid values."""
 
     def has_valid_value(header_name: str) -> bool:
         value = headers.get(header_name, "")
+
         if not isinstance(value, str) or not value.strip():
             return False
 
@@ -50,7 +52,12 @@ def analyze_security_headers(
             return normalized == "nosniff"
 
         if header_name == "Strict-Transport-Security":
-            return bool(re.search(r"(?:^|;)\s*max-age\s*=\s*\d+", normalized))
+            return bool(
+                re.search(
+                    r"(?:^|;)\s*max-age\s*=\s*\d+",
+                    normalized,
+                )
+            )
 
         if header_name == "Referrer-Policy":
             valid_policies = {
@@ -63,15 +70,127 @@ def analyze_security_headers(
                 "strict-origin-when-cross-origin",
                 "unsafe-url",
             }
-            return all(
-                token.strip() in valid_policies
+
+            tokens = [
+                token.strip()
                 for token in normalized.split(",")
+            ]
+
+            return all(
+                token in valid_policies
+                for token in tokens
             )
 
-        if header_name in {
-            "Content-Security-Policy",
-            "Permissions-Policy",
-        }:
+        if header_name == "Content-Security-Policy":
+            valid_directives = {
+                "default-src",
+                "script-src",
+                "style-src",
+                "img-src",
+                "connect-src",
+                "font-src",
+                "object-src",
+                "media-src",
+                "frame-src",
+                "child-src",
+                "worker-src",
+                "manifest-src",
+                "base-uri",
+                "form-action",
+                "frame-ancestors",
+                "upgrade-insecure-requests",
+                "block-all-mixed-content",
+                "sandbox",
+                "report-uri",
+                "report-to",
+                "trusted-types",
+                "require-trusted-types-for",
+                "script-src-elem",
+                "script-src-attr",
+                "style-src-elem",
+                "style-src-attr",
+                "prefetch-src",
+                "navigate-to",
+            }
+
+            directives = [
+                directive.strip().lower()
+                for directive in value.split(";")
+                if directive.strip()
+            ]
+
+            if not directives:
+                return False
+
+            directive_names = [
+                directive.split()[0]
+                for directive in directives
+            ]
+
+            return (
+                all(
+                    name in valid_directives
+                    for name in directive_names
+                )
+                and len(directive_names)
+                == len(set(directive_names))
+            )
+
+        if header_name == "Permissions-Policy":
+            valid_features = {
+                "accelerometer",
+                "autoplay",
+                "camera",
+                "display-capture",
+                "encrypted-media",
+                "fullscreen",
+                "geolocation",
+                "gyroscope",
+                "magnetometer",
+                "microphone",
+                "midi",
+                "payment",
+                "picture-in-picture",
+                "publickey-credentials-get",
+                "screen-wake-lock",
+                "usb",
+                "web-share",
+                "xr-spatial-tracking",
+            }
+
+            directives = [
+                directive.strip().lower()
+                for directive in value.split(",")
+            ]
+
+            if not directives or any(
+                not item for item in directives
+            ):
+                return False
+
+            allowlist_pattern = (
+                r'\(\s*(?:(?:\*|self|src|"(?:[^"\\]|\\.)*")'
+                r'(?:\s+(?:\*|self|src|"(?:[^"\\]|\\.)*"))*)?\s*\)'
+            )
+
+            for directive in directives:
+                if "=" not in directive:
+                    return False
+
+                feature, allowlist = directive.split("=", 1)
+
+                feature = feature.strip()
+                allowlist = allowlist.strip()
+
+                if feature not in valid_features:
+                    return False
+
+                if not re.fullmatch(
+                    allowlist_pattern,
+                    allowlist,
+                ):
+                    return False
+
             return True
 
         return False
@@ -92,14 +211,21 @@ def analyze_http(
         raise ValueError(
             "Target must start with http:// or https://"
         )
+
     try:
         parsed_url = urlsplit(target)
         hostname = parsed_url.hostname
         parsed_url.port
+
     except ValueError as error:
-        raise ValueError("Target must be a valid URL") from error
+        raise ValueError(
+            "Target must be a valid URL"
+        ) from error
+
     if not hostname:
-        raise ValueError("Target must include a valid hostname")
+        raise ValueError(
+            "Target must include a valid hostname"
+        )
 
     if (
         isinstance(timeout, bool)
