@@ -4,6 +4,10 @@ import sys
 import requests
 import typer
 
+from reconx.modules.service_detect import detect_service
+from reconx.modules.dns_enum import enumerate_dns
+from reconx.modules.tls_checker import check_tls
+from reconx.modules.http_methods import detect_http_methods
 from reconx.modules.severity import summarize_severities
 from reconx.modules.dirscan import scan_directories
 from reconx.modules.exposed_files import detect_exposed_files
@@ -599,6 +603,87 @@ def show_help() -> None:
     )
 
 
+def run_dns_scan(target: str, output: str | None = None) -> None:
+    """Run DNS enumeration."""
+    typer.echo("ReconX DNS Enumeration")
+    typer.echo(f"Target: {target}")
+
+    try:
+        results = enumerate_dns(target)
+    except (ValueError, OSError) as error:
+        typer.echo(f"[!] DNS Enumeration Error: {error}")
+        return
+
+    records = results["records"]
+
+    for record_type, values in records.items():
+        if record_type == "error":
+            typer.echo(f"[!] {values}")
+            continue
+
+        typer.echo(f"\n{record_type} Records:")
+        if values:
+            for value in values:
+                typer.echo(f"  {value}")
+        else:
+            typer.echo("  No records returned.")
+
+    write_report(target, "dns_enumeration", results, output)
+    typer.echo("\n[+] DNS enumeration completed.")
+
+
+def run_tls_scan(
+    target: str,
+    port: int = 443,
+    output: str | None = None,
+) -> None:
+    """Run TLS certificate inspection."""
+    typer.echo("ReconX TLS/SSL Checker")
+    typer.echo(f"Target: {target}")
+    typer.echo(f"Port  : {port}")
+
+    try:
+        results = check_tls(target, port)
+    except (ValueError, OSError) as error:
+        typer.echo(f"[!] TLS Check Error: {error}")
+        return
+
+    for key, value in results.items():
+        typer.echo(f"{key.replace('_', ' ').title()}: {value}")
+
+    write_report(target, "tls_check", results, output)
+    typer.echo("\n[+] TLS check completed.")
+
+
+def run_methods_scan(
+    target: str,
+    output: str | None = None,
+) -> None:
+    """Run HTTP method detection."""
+    typer.echo("ReconX HTTP Method Detection")
+    typer.echo(f"Target: {target}")
+
+    try:
+        results = detect_http_methods(target)
+    except (ValueError, OSError) as error:
+        typer.echo(f"[!] HTTP Method Detection Error: {error}")
+        return
+
+    typer.echo(f"Status Code: {results['status_code']}")
+    typer.echo(f"Allow Header: {results['allow_header'] or 'Not disclosed'}")
+    typer.echo(
+        f"Advertised Methods: "
+        f"{', '.join(results['advertised_methods']) or 'None'}"
+    )
+    typer.echo(
+        f"Potentially Risky Methods: "
+        f"{', '.join(results['potentially_risky_methods']) or 'None'}"
+    )
+    typer.echo(f"Detection: {results['method_detection']}")
+
+    write_report(target, "http_method_detection", results, output)
+    typer.echo("\n[+] HTTP method detection completed.")
+
 def _cli() -> None:
     """ReconX command-line entry point."""
     args = sys.argv[1:]
@@ -609,6 +694,59 @@ def _cli() -> None:
 
     if args[0] in ("--version", "-v"):
         typer.echo("ReconX version 0.1.0")
+        return
+
+    if args[0] in ("dns", "tls", "methods"):
+        command = args[0]
+
+        if args[1:] in (["--help"], ["-h"]):
+            typer.echo(
+                f"Usage: reconx {command} TARGET "
+                "[-p PORT] [-o REPORT.json|REPORT.csv]"
+            )
+            return
+
+        if len(args) < 2:
+            typer.echo(f"Error: missing target for {command}.")
+            return
+
+        target = args[1]
+        output = None
+        port = 443
+        index = 2
+
+        while index < len(args):
+            option = args[index]
+
+            if option in ("-o", "--output"):
+                if index + 1 >= len(args):
+                    typer.echo("Error: missing output filename.")
+                    return
+                output = args[index + 1]
+                index += 2
+
+            elif option in ("-p", "--port") and command == "tls":
+                if index + 1 >= len(args):
+                    typer.echo("Error: missing port value.")
+                    return
+                try:
+                    port = int(args[index + 1])
+                except ValueError:
+                    typer.echo("Error: port must be an integer.")
+                    return
+                index += 2
+
+            else:
+                typer.echo(f"Error: invalid or incomplete option: {option}")
+                return
+
+        if command == "dns":
+            run_dns_scan(target, output)
+        elif command == "tls":
+            run_tls_scan(target, port, output)
+        else:
+            run_methods_scan(target, output)
+
         return
 
     if args[0] == "web":
